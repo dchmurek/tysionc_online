@@ -39,13 +39,13 @@
 - Pierwszą lewę wychodzi zwycięzca licytacji; kolejne – zwycięzca poprzedniej lewy.
 - Na stole widać tylko bieżącą lewę (ukończona zostaje ok. 1,5 s, żeby było widać ostatnią kartę); brak historii zagranych kart.
 - Obowiązek przebicia dotyczy karty wygrywającej lewę w danej chwili (jeśli lewę wygrywa atut, dokładający do koloru nie musi przebijać).
-- Brak zwolnienia z przebijania, gdy lewę wygrywa partner.
+- **Przebijać trzeba zawsze, gdy się da – także gdy lewę bierze partner** (potwierdzone). Dotyczy też dawania i nadbijania atutu.
 - Remis w wyniku nie jest możliwy (wygrywa tylko drużyna licytująca).
 
 ## Otwarte pytania (nie zgadywałem – wymagana decyzja)
 
 1. ~~Meldunki~~ – **ustalone**: pik 60, trefl 40 – tak samo jak w starej aplikacji, więc stara historia przechodzi 1:1 (symbol i wartość się zgadzają, wyniki co do punktu).
 2. ~~Zaokrąglanie~~ – **ustalone**: do najbliższej 10, kontrakt sprawdzany po zaokrągleniu.
-3. Czy obowiązuje zwolnienie z przebijania, gdy lewę wygrywa partner?
+3. ~~Przebijanie partnera~~ – **ustalone**: zawsze trzeba przebić, jeśli można.
 4. ~~Pierwsze 100~~ – **ustalone**: obowiązkowe dla gracza po rozdającym.
 5. Jedno historyczne rozdanie (mecz `gmw1uxazz8uvbw`, rozdanie 16) oznaczono kiedyś jako ugrane przy ugranych 120 < kontrakt 150 i zaliczono +150. Zostawiono bez zmian (zachowanie historii); można je poprawić ręcznie w aplikacji.

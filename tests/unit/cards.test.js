@@ -258,3 +258,18 @@ test('nie istnieje mechanika bomby', () => {
   assert.throws(() => applyAction(h, h.turn, { type: 'bomb' }), RuleError);
   assert.equal('bombPoints' in DEFAULT_SETTINGS, false);
 });
+
+test('przebijanie obowiązuje zawsze – także gdy lewę bierze partner (do koloru i atutem)', () => {
+  const hands = [
+    ['KH', 'QD', 'JD', '9C', 'JS', 'TS'],
+    ['TH', 'AD', 'KD', 'TD', 'QS', 'KS'],
+    ['9H', 'AC', 'TC', 'KC', 'QC', 'AS'],
+    ['AH', 'JH', 'QH', '9D', 'JC', '9S'],
+  ];
+  const h = playingState(hands);
+  applyAction(h, 0, { type: 'play', card: 'KH' });
+  applyAction(h, 1, { type: 'play', card: 'TH' }); // lewę bierze gracz 1
+  applyAction(h, 2, { type: 'play', card: '9H' });
+  // gracz 3 jest partnerem gracza 1, który wygrywa lewę – i tak musi przebić asem
+  assert.deepEqual(legalCards(h, 3), ['AH']);
+});
