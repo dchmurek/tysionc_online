@@ -144,6 +144,10 @@ test('podczas rozdania online nie można dopisać wyniku offline do tego meczu',
   await assert.rejects(players[0].wsc.act(roomId, { type: 'detach' }), /Dokończ rozdanie/);
 });
 
+test('unieważnienie rozdania: tylko administrator, bez zapisu punktów', async () => {
+  await assert.rejects(players[0].wsc.act(roomId, { type: 'abort-hand' }), /administrator/);
+});
+
 test('rozłączenie i ponowne połączenie: stan odtworzony', async () => {
   const p = players[1];
   const before = view(p, roomId);

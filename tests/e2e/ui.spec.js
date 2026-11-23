@@ -182,6 +182,27 @@ test('administrator: użytkownicy, kopia, diagnostyka; powiększanie strony nie 
   await expect(page.locator('pre')).toContainText('integrityProblems');
   await shot(page, testInfo, '20-admin');
   await noHorizontalOverflow(page);
+
+  // aktywacja konta bez hasła: profil → kod od administratora → gracz aktywuje w swojej przeglądarce
+  const nickG = 'Gosc' + testInfo.project.name.replace(/[^0-9]/g, '');
+  await page.evaluate(async (n) => {
+    const me = await (await fetch('/api/me')).json();
+    await fetch('/api/users/profile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tysiac': '1', 'X-CSRF-Token': me.csrf }, body: JSON.stringify({ nick: n }) });
+  }, nickG);
+  await page.reload();
+  const row = page.locator('tr', { hasText: nickG });
+  await row.locator('[data-act=code]').click();
+  const code = (await page.locator('.modal .room-code').innerText()).trim();
+  expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  await page.click('.modal .btn');
+  const other = await (await page.context().browser().newContext({ viewport: page.viewportSize() })).newPage();
+  await other.goto('/#/activate');
+  await other.fill('input[name=nick]', nickG);
+  await other.fill('input[name=code]', code);
+  await other.fill('input[name=password]', 'wlasne-haslo-goscia');
+  await other.fill('input[name=password2]', 'wlasne-haslo-goscia');
+  await other.click('button[type=submit]');
+  await expect(other.locator('h1')).toContainText(nickG);
   expect(errors).toEqual([]);
 });
 

@@ -80,3 +80,63 @@ test('konflikt: dwa telefony dodają rozdanie do tego samego meczu – nic nie g
   expect(m.rounds.length).toBe(3); // rozdanie A i rozdanie B – oba zachowane
   await expect(b.locator('.lrow:not(.head)')).toHaveCount(3);
 });
+
+test('PWA: manifest, Service Worker i działanie po przeładowaniu bez internetu', async ({ page, context }) => {
+  await login(page, 'Akuro');
+  const manifest = await page.evaluate(async () => (await fetch('/manifest.webmanifest')).json());
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.icons.some((i) => i.sizes === '512x512')).toBe(true);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect(page.locator('.big-tile.online')).toBeVisible();
+  await page.waitForTimeout(500);
+  await context.setOffline(true);
+  await page.reload();
+  // aplikacja startuje z cache, dane z telefonu, komunikat o braku sieci
+  await expect(page.locator('.big-tile.offline')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#banner')).toContainText('Brak internetu');
+  // dane API nie trafiają do cache Service Workera
+  const cachedApi = await page.evaluate(async () => {
+    const keys = await caches.keys();
+    let n = 0;
+    for (const k of keys) n += (await (await caches.open(k)).keys()).filter((r) => r.url.includes('/api/')).length;
+    return n;
+  });
+  expect(cachedApi).toBe(0);
+  await context.setOffline(false);
+});
+
+test('mecz offline → „Kontynuuj online”: pokój z zarezerwowanymi miejscami, ten sam mecz', async ({ page }) => {
+  await login(page, 'Kamil');
+  const id = await newMatch(page);
+  await addRound(page, 0, 20);
+  await expect.poll(() => queueLen(page)).toBe(0);
+  await page.click('[data-act=menu]');
+  await page.click('.modal button:has-text("Kontynuuj online")');
+  await expect(page.locator('.room-code')).toBeVisible();
+  await expect(page.locator('.eyebrow').first()).toHaveText('Kontynuacja meczu');
+  await expect(page.locator('.lseat.me')).toHaveCount(1); // automatycznie na swoim miejscu
+  await expect(page.locator('.lseat').nth(1)).toContainText('jeszcze nie dołączył');
+  // powrót do trybu offline z poczekalni
+  await page.click('[data-act=detach]');
+  await page.click('.modal button:has-text("Przejdź")');
+  await expect(page).toHaveURL(new RegExp('#/match/' + id));
+  await expect(page.locator('.lrow:not(.head)')).toHaveCount(1);
+});
+
+test('orientacja pozioma telefonu: stół offline i dock bez nakładania', async ({ browser }) => {
+  const page = await (await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true })).newPage();
+  await login(page, 'Karol');
+  await newMatch(page);
+  await addRound(page, 1, 40);
+  await page.screenshot({ path: 'test-results/screens/phone-landscape-table.png' });
+  const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth }));
+  expect(o.sw).toBeLessThanOrEqual(o.w + 1);
+  await page.click('#cta [data-act=add]');
+  await page.locator('.pbtn').first().click();
+  await page.click('[data-act=collapse]');
+  await page.waitForTimeout(450);
+  const save = await page.locator('[data-act=save]').boundingBox();
+  expect(save.y + save.height).toBeLessThanOrEqual(391);
+  await page.screenshot({ path: 'test-results/screens/phone-landscape-sheet.png' });
+});

@@ -368,8 +368,8 @@ export function table({ el, params, go, setCta, setBar }) {
       case 'bidder': d.bidder = a.dataset.pid; drawSheet(); break;
       case 'bid': d.bid = Number(a.dataset.v); drawSheet(); break;
       case 'bid-step': d.bid = Math.min(m.settings.maxBid, Math.max(m.settings.minBid, d.bid + Number(a.dataset.v))); drawSheet(); break;
-      case 'collapse': d.top = false; drawSheet(); break;
-      case 'expand': d.top = true; drawSheet(); break;
+      case 'collapse': d.top = false; drawSheet(); $('.sheet-body', sheetRoot).scrollTop = 0; break;
+      case 'expand': d.top = true; drawSheet(); $('.sheet-body', sheetRoot).scrollTop = 0; break;
       case 'key': {
         let v = d.opp;
         const k = a.dataset.k;

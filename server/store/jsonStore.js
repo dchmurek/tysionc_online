@@ -211,7 +211,7 @@ export class JsonStore {
       const entries = await fsp.readdir(path.join(this.dir, rel), { withFileTypes: true }).catch(() => []);
       for (const e of entries) {
         if (e.isDirectory()) {
-          if (!rel && (e.name === 'backups' || e.name === 'audit' || e.name === 'logs')) continue;
+          if (!rel && ['backups', 'audit', 'logs', 'migrations'].includes(e.name)) continue;
           if (!rel) await walk(e.name);
         } else if (e.name.endsWith('.json')) {
           out.push(rel ? `${rel}/${e.name.slice(0, -5)}` : e.name.slice(0, -5));

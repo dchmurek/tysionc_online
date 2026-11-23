@@ -199,7 +199,8 @@ export function room({ el, params, go, setCta, setBar }) {
         <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
         ${view.status === 'playing' && h ? drawControls(h, myTurn) : drawResult()}
         ${me >= 0 && h ? html`<div class="hand" role="group" aria-label="Twoje karty">${h.hand.map((c) => card(c, { act: 'card', playable: myTurn && h.phase === 'playing' && h.legal.includes(c), dim: myTurn && h.phase === 'playing' && !h.legal.includes(c), selected: selected === c, meld: h.meldable.includes(c) }))}</div>` : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
-        <details class="glog"><summary>Ostatnie akcje</summary><ol>${(view.log || []).slice().reverse().map((x) => html`<li>${nick(view.seats[x.seat])}: ${x.type === 'bid' ? `licytuje ${x.value}` : x.type === 'pass' ? 'pas' : html`${x.meld ? 'melduje i ' : ''}zagrywa ${card(x.card, { small: true })}`}</li>`)}</ol></details>
+        ${state.me.role === 'admin' && view.status === 'playing' ? html`<button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie (admin)</button>` : ''}
+        <details class="glog"><summary>Ostatnie akcje</summary><ol>${(view.log || []).slice().reverse().map((x) => html`<li>${x.type === 'abort' ? 'Rozdanie unieważnione przez administratora' : html`${nick(view.seats[x.seat])}: `}${x.type === 'abort' ? '' : x.type === 'bid' ? `licytuje ${x.value}` : x.type === 'pass' ? 'pas' : html`${x.meld ? 'melduje i ' : ''}zagrywa ${card(x.card, { small: true })}`}</li>`)}</ol></details>
       </div>`);
     setCta('');
   }
@@ -231,7 +232,7 @@ export function room({ el, params, go, setCta, setBar }) {
     const lh = view.lastHand;
     const sc = scoresOf();
     const me = view.mySeat;
-    if (!lh) return '';
+    if (!lh) return view.status === 'between' && view.mySeat >= 0 ? (setTimeout(() => setCta(html`<button class="btn-ghost" data-act="detach">Tryb offline</button><button class="btn-gold" data-act="ready" ${view.ready[view.mySeat] ? raw('disabled') : ''}>Następne rozdanie ♠</button>`)), html`<p class="notice warn">Rozdanie zostało unieważnione.</p>`) : '';
     const teams = sc ? sc.c.teams : [[view.seats[0], view.seats[2]], [view.seats[1], view.seats[3]]];
     const meldTeam = [0, 1].map((t) => lh.melds.filter((x) => x.team === t).reduce((a, x) => a + x.value, 0));
     const myReady = me >= 0 && view.ready[me];
@@ -266,6 +267,9 @@ export function room({ el, params, go, setCta, setBar }) {
         }
         break;
       case 'rematch': send({ type: 'rematch' }); break;
+      case 'abort':
+        if (await confirmBox('Unieważnić rozdanie?', 'Rozdanie zostanie przerwane bez zapisu punktów. Używaj tylko, gdy gra nie może być kontynuowana.', 'Unieważnij', 'danger')) send({ type: 'abort-hand' });
+        break;
       case 'match': go('/match/' + encodeURIComponent(view.matchId) + '/details'); break;
       case 'copy': {
         const text = `Zagraj w Tysiąca: ${location.origin}/#/online – kod ${view.code}`;

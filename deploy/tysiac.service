@@ -1,0 +1,25 @@
+# /etc/systemd/system/tysiac.service – usługa systemd (restart po awarii i po restarcie serwera)
+[Unit]
+Description=Tysiac online (Node.js)
+After=network.target
+
+[Service]
+Type=simple
+User=tysiac
+Group=tysiac
+WorkingDirectory=/opt/tysiac
+EnvironmentFile=/opt/tysiac/.env
+ExecStart=/usr/bin/node server/main.js
+Restart=on-failure
+RestartSec=3
+# Jedna instancja – magazyn JSON ma jednego zapisującego (blokada .writer.lock).
+# Utwardzenie:
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/tysiac
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

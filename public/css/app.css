@@ -947,3 +947,15 @@ body.in-game .cta-wrap { bottom: var(--safe-b); }
 @media (max-width: 380px) { .trick { --tw: 38px; } }
 @media (orientation: landscape) and (max-height: 500px) { .trick { --tw: 34px; } }
 .seat-box.left, .seat-box.right { max-width: 30%; }
+/* telefon poziomo: arkusz szerszy, punkty obok klawiatury */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sheet { max-width: 860px; }
+  .sheet-head { padding-top: 4px; padding-bottom: 2px; }
+  .sheet-grip { display: none; }
+  .key { height: 36px; font-size: 1.1rem; }
+  .keypad { grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }
+  .ofield { min-height: 48px; padding: 6px 10px; }
+  .ofield .ov { font-size: 1.25rem; }
+  .lbl { margin: 6px 2px 4px; }
+  .sheet-foot .btn-gold { min-height: 44px; }
+}

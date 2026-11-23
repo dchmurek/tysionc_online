@@ -222,6 +222,17 @@ export class Rooms {
         if (!room.members.length) { room.status = 'closed'; this.rooms.delete(room.id); }
         break;
       }
+      case 'abort-hand': {
+        // Awaryjne unieważnienie rozdania (np. gracz trwale zniknął). Tylko administrator; nic nie trafia do historii.
+        if (user.role !== 'admin') throw new AppError(403, 'Unieważnić rozdanie może tylko administrator');
+        if (room.status !== 'playing') throw new AppError(400, 'Rozdanie nie trwa');
+        room.hand = null;
+        room.status = 'between';
+        room.ready = [false, false, false, false];
+        room.log = [...room.log, { at: now(), seat: -1, type: 'abort', by: user.id }].slice(-60);
+        await this.audit('room.abort-hand', { roomId: room.id, matchId: room.matchId, adminId: user.id });
+        break;
+      }
       case 'rematch': {
         if (room.status !== 'finished') throw new AppError(400, 'Rewanż po zakończeniu meczu');
         if (seat < 0) throw new AppError(403, 'Tylko gracz przy stole');

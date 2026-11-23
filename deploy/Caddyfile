@@ -1,0 +1,5 @@
+# Alternatywa dla nginx: Caddy sam pobiera certyfikat HTTPS i obsługuje WebSocket.
+tysiac.example.pl {
+    encode gzip
+    reverse_proxy 127.0.0.1:8080
+}
