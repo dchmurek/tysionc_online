@@ -1,0 +1,29 @@
+# Wymuszenie HTTPS (hasła nie mogą iść otwartym tekstem).
+# Certyfikat SSL (Let's Encrypt) włączasz w panelu CyberFolks: SSL/TLS → dla domeny.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "same-origin"
+</IfModule>
+
+# Po aktualizacji telefony od razu dostają nową wersję aplikacji (bez starych plików z pamięci).
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+Options -Indexes
+
+# Pliki, których nie wolno pobierać z przeglądarki.
+<FilesMatch "(^\.|\.(md|key|json|log|bak|txt)$|^(users|auth|config)\.php$)">
+  Require all denied
+</FilesMatch>

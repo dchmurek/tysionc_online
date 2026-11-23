@@ -1,0 +1,16 @@
+.DS_Store
+dist/
+
+# Dane produkcyjne i sekrety – nigdy do repozytorium
+data/
+*.key
+
+# Pliki ze skrótami haseł – w repo są tylko wersje *.example.php
+config.php
+users.php
+
+# Lokalne
+.env
+.env.*
+node_modules/
+.claude/settings.local.json
