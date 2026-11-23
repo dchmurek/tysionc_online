@@ -29,8 +29,8 @@ export const CONTRACT_CHECKS = ['raw', 'rounded'];
 
 // Domyślne ustawienia nowego meczu.
 // rounding: 'nearest10' – zachowanie dotychczasowej aplikacji (Math.round do dziesiątek, 5 w górę).
-// contractCheck: 'raw' – kontrakt sprawdzany na punktach przed zaokrągleniem
-//   (dotychczasowa aplikacja ostrzegała, gdy niezaokrąglone ugrane < licytacja).
+// contractCheck: 'rounded' – kontrakt sprawdzany PO zaokrągleniu (ustalenie właściciela:
+//   grał 160, ma 158 → zaokrąglone 160 → kontrakt ugrany, +160).
 export const DEFAULT_SETTINGS = Object.freeze({
   target: 1000,
   passiveCap: 990,
@@ -38,7 +38,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   bidStep: 10,
   maxBid: 400,
   rounding: 'nearest10',
-  contractCheck: 'raw',
+  contractCheck: 'rounded',
   // Zasady rozgrywki online (wariantowe – zapisywane w meczu):
   mustBeat: true,          // dokładając do koloru trzeba przebić, jeśli się da
   mustTrump: true,         // brak koloru → trzeba dać atut, jeśli się ma

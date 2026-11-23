@@ -17,7 +17,7 @@ Zakodowane w `server/migrate/legacy.js` (`NAME_MAP`) i sprawdzane testami (`test
 2. Rekordy z historią mapuje na konta kanoniczne wg tabeli. Gracz z historią spoza tabeli → **przerwanie** (bez zgadywania).
 3. Dwa rekordy z historią wskazujące na ten sam profil → **przerwanie i prośba o decyzję** (raport zawiera, czy kiedykolwiek grały razem).
 4. Rekordy bez żadnej historii trafiają tylko do archiwum migracji. Drugi rekord „Akuro” (usunięty, 0 odwołań) jest dopisany jako alias Akuro; stary pusty rekord „Daniel” (usunięty, 0 odwołań) **nie** jest doklejany do nikogo.
-5. Tworzy 4 konta oczekujące na aktywację (bez haseł) z deterministycznymi, stałymi ID.
+5. Tworzy 4 konta oczekujące na aktywację (bez haseł) z deterministycznymi, stałymi ID; **wszystkie cztery z rolą administratora** (ustalenie właściciela). Mecze dostają zasady: zaokrąglanie do 10, kontrakt sprawdzany po zaokrągleniu (dotyczy nowych rozdań – historyczne zachowują zapisany wynik).
 6. Przenosi mecze i rozdania; meldunki konwertuje według wartości (zob. `docs/ZASADY.md`, pytanie 1). Oryginalne dane każdego rozdania zostają w `round.legacy`, a ustawienia i ID graczy meczu w `match.migratedFrom`.
 7. **Weryfikuje każdy mecz**: wyniki po każdym rozdaniu i zwycięzca muszą być identyczne jak w starym silniku (`legacy/php/engine.js`). Jakakolwiek różnica przerywa migrację.
 8. Grupuje mecze w sesje (spotkania): skupiska aktywności tej samej czwórki bez przerwy > 12 h.

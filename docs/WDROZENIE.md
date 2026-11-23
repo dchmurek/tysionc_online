@@ -30,8 +30,8 @@ sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/migrate.js --sou
 sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/migrate.js --source /ścieżka/do/db.json
 
 # 5. Administrator
-sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/admin.js activation Daniel
-sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/admin.js role Daniel admin
+# (Kamil, Daniel, Karol i Akuro są administratorami od migracji – potrzebne są tylko kody aktywacyjne)
+for n in Kamil Daniel Karol Akuro; do sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/admin.js activation $n; done
 
 # 6. Usługa i HTTPS
 sudo cp deploy/tysiac.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tysiac

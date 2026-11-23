@@ -40,7 +40,7 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 
 ## Wyniki testów (rzeczywiście wykonane 2026-11-23)
 
-- `npm test`: **98 testów – 98 zaliczonych** (unit: silnik kart, punktacja, statystyki; integracyjne: magazyn, kopie i przywracanie, migracja (także na prawdziwych danych lokalnie), konta, mecze i konflikty, pokoje, 4 graczy online przez WebSocket z restartem serwera, administracja/import, bezpieczeństwo, wydajność).
+- `npm test`: **99 testów – 99 zaliczonych** (unit: silnik kart, punktacja, statystyki; integracyjne: magazyn, kopie i przywracanie, migracja (także na prawdziwych danych lokalnie), konta, mecze i konflikty, pokoje, 4 graczy online przez WebSocket z restartem serwera, administracja/import, bezpieczeństwo, wydajność).
 - `npm run test:e2e` (Playwright + Google Chrome): **21 zaliczonych, 29 pominiętych celowo** (scenariusze ograniczone do wybranych rozdzielczości), 0 błędów. Rozdzielczości: 1920×1080, 1366×768, 768×1024, 390×844, 320×568 i telefon poziomo 844×390.
 - Wydajność: statystyki 2000 meczów / 30 000 rozdań ≈ 50 ms; 200 równoległych zapisów rozdań ≈ 16 ms/zapis (z fsync), bez utraty danych.
 
@@ -59,8 +59,8 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 
 ## Wymagające decyzji właściciela
 
-- Pytania w `docs/ZASADY.md` („Otwarte pytania”): kolory meldunków w historii, zaokrąglanie, zwolnienie z przebijania przy partnerze, obowiązkowe 100.
-- Kto ma być administratorem (instrukcja zakłada Daniela – do potwierdzenia).
+- Ustalone 23.11: meldunki trefl 60 / pik 40; kontrakt po zaokrągleniu (158 → 160 = ugrany); administratorami są wszyscy czterej gracze.
+- Pozostałe pytania w `docs/ZASADY.md`: przeliczenie historycznych meldunków wg symbolu (opcjonalnie), zwolnienie z przebijania przy partnerze, obowiązkowe 100.
 - Hosting (VPS lub sprawdzenie obsługi Node.js w CyberFolks).
 
 ## Kolejne zadania (propozycje)

@@ -41,9 +41,20 @@ test('zaokrąglanie: nearest10 / down10 / exact', () => {
   assert.equal(roundPoints(157, 'exact'), 157);
 });
 
-test('test kontraktu wg reguły: raw (domyślnie) vs rounded', () => {
+test('kontrakt sprawdzany po zaokrągleniu (domyślnie): grał 160, ma 158 → +160', () => {
+  // A: 120 − 62 = 58 + kier 100 = 158 → zaokrąglone 160
+  const c = computeMatch(M([R('A1', 160, 62, { A1: ['H'] })]));
+  assert.equal(c.rows[0].made, true);
+  assert.equal(c.rows[0].deltas[0], 160);
+  // 154 → 150 < 160 → nieugrany
+  const c2 = computeMatch(M([R('A1', 160, 66, { A1: ['H'] })]));
+  assert.equal(c2.rows[0].made, false);
+  assert.equal(c2.rows[0].deltas[0], -160);
+});
+
+test('test kontraktu wg reguły: raw vs rounded', () => {
   // A: 120-65 = 55 + kier 100 = 155 vs kontrakt 160
-  const raw = computeMatch(M([R('A1', 160, 65, { A1: ['H'] })]));
+  const raw = computeMatch(M([R('A1', 160, 65, { A1: ['H'] })], { contractCheck: 'raw' }));
   assert.equal(raw.rows[0].made, false);
   assert.equal(raw.rows[0].deltas[0], -160);
   const rounded = computeMatch(M([R('A1', 160, 65, { A1: ['H'] })], { contractCheck: 'rounded' }));
@@ -136,4 +147,5 @@ test('ustawienia są walidowane', () => {
   assert.throws(() => normalizeSettings({ rounding: 'up' }), RuleError);
   assert.throws(() => normalizeSettings({ target: 1005 }), RuleError);
   assert.equal(normalizeSettings({}).rounding, 'nearest10');
+  assert.equal(normalizeSettings({}).contractCheck, 'rounded');
 });

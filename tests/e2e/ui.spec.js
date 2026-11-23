@@ -161,7 +161,7 @@ test('statystyki, grupy, pary, historia, sesje, profil', async ({ page }, testIn
   await noHorizontalOverflow(page);
   await page.click('#dock [data-tab=profile]');
   await expect(page.locator('h3:has-text("Zmiana hasła")')).toBeVisible();
-  await expect(page.locator('a[href="#/admin"]')).toHaveCount(0);
+  await expect(page.locator('a[href="#/admin"]')).toHaveCount(1); // każdy z 4 graczy jest administratorem
   await shot(page, testInfo, '16-profile');
   await noHorizontalOverflow(page);
   expect(errors).toEqual([]);
@@ -217,4 +217,10 @@ test('rejestracja nowego gracza i unikalność nicku', async ({ page }, testInfo
   await page.fill('input[name=nick]', 'Mati');
   await page.click('button[type=submit]');
   await expect(page.locator('h1')).toContainText('Mati');
+  // nowy gracz nie jest administratorem
+  await page.click('#dock [data-tab=profile]');
+  await expect(page.locator('h3:has-text("Zmiana hasła")')).toBeVisible();
+  await expect(page.locator('a[href="#/admin"]')).toHaveCount(0);
+  await page.goto('/#/admin');
+  await expect(page.locator('h1')).not.toHaveText('Panel');
 });

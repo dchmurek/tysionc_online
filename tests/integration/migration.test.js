@@ -20,6 +20,8 @@ test('mapowanie jest dokładnie: Damazy→Daniel, Dollat→Kamil, Karol→Karol,
   assert.notEqual(map.Damazy, 'Kamil');
   assert.notEqual(map.Dollat, 'Daniel');
   assert.deepEqual(plan.users.map((u) => u.nick).sort(), ['Akuro', 'Daniel', 'Kamil', 'Karol']);
+  assert.ok(plan.users.every((u) => u.role === 'admin'), 'każdy z czterech graczy jest administratorem');
+  assert.ok(plan.matches.every((m) => m.settings.contractCheck === 'rounded'));
 });
 
 test('historia przypisana właściwym osobom (licytacje Damazego → Daniel, Dollata → Kamil)', () => {

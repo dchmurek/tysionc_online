@@ -25,16 +25,15 @@ Dane trafiają do `storage/` (zmienna `DATA_DIR`). Katalog jest w `.gitignore`.
 
 ### Pierwszy administrator i aktywacja kont Kamil, Daniel, Karol, Akuro
 
-Migracja tworzy cztery konta **bez haseł** (status „czeka na aktywację”). Kod aktywacyjny generuje administrator:
+Migracja tworzy cztery konta **bez haseł** (status „czeka na aktywację”); **każdy z czterech graczy ma rolę administratora**. Pierwszy kod generuje się z konsoli:
 
 ```bash
 # przy zatrzymanym serwerze (magazyn ma jednego zapisującego):
 npm run admin -- activation Daniel        # wypisuje jednorazowy kod, ważny 7 dni
-npm run admin -- role Daniel admin        # nadanie roli administratora
 npm start
 ```
 
-Gracz otwiera stronę → **„Aktywuj konto”** → wpisuje nick, kod i własne hasło. Kolejne kody (Kamil, Karol, Akuro) administrator generuje już w aplikacji: **Profil → Administracja → Kod aktywacyjny**. Nikt poza graczem nie zna hasła; administrator nie widzi haseł.
+Gracz otwiera stronę → **„Aktywuj konto”** → wpisuje nick, kod i własne hasło. Kody dla pozostałych może wygenerować każdy już aktywny administrator w aplikacji: **Profil → Administracja → Kod aktywacyjny** (albo wszystkie od razu z konsoli: `npm run admin -- activation Kamil` itd.). Nikt poza graczem nie zna hasła; administrator nie widzi haseł.
 
 Nowi gracze rejestrują się sami: **„Zarejestruj się”** (nick + hasło, bez e-maila).
 

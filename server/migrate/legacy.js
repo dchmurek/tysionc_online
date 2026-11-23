@@ -92,7 +92,8 @@ export function planMigration(legacy, { now = new Date().toISOString() } = {}) {
     const legacyIds = legacy.players.filter((p) => legacyToUser[p.id] === canonicalUserId(nick) || (!refs[p.id] && NAME_MAP[p.name] === nick)).map((p) => p.id);
     const names = [...new Set(legacy.players.filter((p) => legacyIds.includes(p.id)).map((p) => p.name))];
     return {
-      id: canonicalUserId(nick), nick, nickKey: nickKey(nick), role: 'player', status: 'pending', passwordHash: null,
+      id: canonicalUserId(nick), nick, nickKey: nickKey(nick), role: 'admin', // ustalenie właściciela: każdy z czterech graczy jest administratorem
+      status: 'pending', passwordHash: null,
       createdAt: now, updatedAt: now, activation: null, profile: {}, nickHistory: [],
       legacy: { playerIds: legacyIds, names, migration: MIGRATION_ID },
     };
@@ -125,7 +126,7 @@ export function planMigration(legacy, { now = new Date().toISOString() } = {}) {
       id: g.id, schema: 2, mode: 'offline', seats, firstDealerSeat: 0,
       settings: {
         target: st.target ?? 1000, passiveCap: st.passiveCap ?? 990, minBid: st.minBid ?? 100, bidStep: 10, maxBid: 400,
-        rounding: st.round10 === false ? 'exact' : 'nearest10', contractCheck: 'raw', mustBeat: true, mustTrump: true, meldOnFirstTrick: false,
+        rounding: st.round10 === false ? 'exact' : 'nearest10', contractCheck: 'rounded', mustBeat: true, mustTrump: true, meldOnFirstTrick: false,
       },
       rounds, status: g.status, winner: g.winner ?? null, createdAt: g.created, createdBy: null,
       finishedAt: g.finished, updatedAt: g.updated || g.updatedLocal || g.created, groupKey: groupKeyOf(seats), roomId: null,
