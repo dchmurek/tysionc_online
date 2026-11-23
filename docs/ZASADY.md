@@ -34,8 +34,8 @@
 - Rozdaje kolejno następny gracz zgodnie z miejscami; licytację **obowiązkowo otwiera 100** gracz po lewej rozdającego; gdy wszyscy spasują – gra on za 100.
 - Pas jest ostateczny (nie można wrócić do licytacji).
 - Licytację otwiera obowiązkowo 100 gracz po rozdającym (potwierdzone); po licytacji grający bierze musik i oddaje karty.
-- Grający nie podnosi kontraktu po zobaczeniu musika (do potwierdzenia, jeśli gracie inaczej).
-- Musik leży zakryty – pozostali gracze go nie widzą (do potwierdzenia, jeśli ma być odkrywany).
+- Grający **nie podnosi kontraktu** po zebraniu musika (potwierdzone – i tak liczy się faktycznie ugrane, np. grał 150, ugrał 300 → +300).
+- Musik leży **zakryty** i nie jest nikomu pokazywany (potwierdzone).
 - Pierwszą lewę wychodzi zwycięzca licytacji; kolejne – zwycięzca poprzedniej lewy.
 - Na stole widać tylko bieżącą lewę (ukończona zostaje ok. 1,5 s, żeby było widać ostatnią kartę); brak historii zagranych kart.
 - Obowiązek przebicia dotyczy karty wygrywającej lewę w danej chwili (jeśli lewę wygrywa atut, dokładający do koloru nie musi przebijać).
