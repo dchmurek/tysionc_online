@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0d0c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tysiąc">
+  <meta name="description" content="Tysiąc na krzyż – gra online i licznik punktów do gry prawdziwymi kartami">
+  <title>Tysiąc</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/vendor/chart.umd.min.js" defer></script>
+  <script type="module" src="/js/main.js"></script>
+</head>
+<body>
+  <a class="skip" href="#app">Przejdź do treści</a>
+  <header class="bar">
+    <button class="brand" type="button" aria-label="Strona główna"><svg class="brand-suit" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5c-2.3 2.6-7.5 6.2-7.5 10.2a4 4 0 0 0 6.6 3.1L10 21.5h4l-1.1-5.7a4 4 0 0 0 6.6-3.1c0-4-5.2-7.6-7.5-10.2z"/></svg>Tysiąc</button>
+    <div id="barAction" class="bar-action"></div>
+  </header>
+  <div id="banner" class="banner" hidden role="status"></div>
+  <main id="app" tabindex="-1"><div class="loading"><span class="spinner"></span>Tasowanie…</div></main>
+  <div id="cta" class="cta-wrap" hidden></div>
+  <nav class="dock" id="dock" aria-label="Nawigacja" hidden>
+    <button type="button" data-go="/" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Start</span></button>
+    <button type="button" data-go="/play" data-tab="play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="11" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v13"/></svg><span>Graj</span></button>
+    <button type="button" data-go="/stats" data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Statystyki</span></button>
+    <button type="button" data-go="/history" data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg><span>Historia</span></button>
+    <button type="button" data-go="/profile" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Profil</span></button>
+  </nav>
+  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+</body>
+</html>

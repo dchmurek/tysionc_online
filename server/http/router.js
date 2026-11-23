@@ -23,9 +23,11 @@ function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
+    let over = false;
     req.on('data', (c) => {
+      if (over) return; // resztę odrzucamy; po wysłaniu odpowiedzi 413 połączenie zostanie zamknięte
       size += c.length;
-      if (size > limit) { reject(new AppError(413, 'Za duże dane')); req.destroy(); return; }
+      if (size > limit) { over = true; chunks.length = 0; reject(new AppError(413, 'Za duże dane', 'too_large')); return; }
       chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
@@ -259,7 +261,9 @@ export function createRouter(svc) {
       if (e instanceof AppError || e instanceof ValidationError) {
         const extra = {};
         if (e.endsAt) extra.endsAt = e.endsAt;
-        return send(res, e.status || 400, { ok: false, error: e.message, code: e.code, ...extra }, e.retryAfter ? { 'Retry-After': String(e.retryAfter) } : {});
+        const hdr = e.retryAfter ? { 'Retry-After': String(e.retryAfter) } : {};
+        if (e.status === 413) { hdr.Connection = 'close'; res.on('finish', () => req.destroy()); }
+        return send(res, e.status || 400, { ok: false, error: e.message, code: e.code, ...extra }, hdr);
       }
       svc.log.error('API', req.method, url.pathname, e.stack || e);
       return send(res, 500, { ok: false, error: 'Błąd serwera' });
