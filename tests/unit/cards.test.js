@@ -1,0 +1,229 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  fullDeck, shuffle, createHand, applyAction, legalCards, canMeld, viewFor, handToRound,
+  cardPoints, beats, trickWinnerIndex,
+} from '../../shared/cards.js';
+import { DEFAULT_SETTINGS, RuleError } from '../../shared/rules.js';
+
+const seeded = (seed) => {
+  let s = seed >>> 0;
+  return (n) => { s = (s * 1664525 + 1013904223) >>> 0; return s % n; };
+};
+// Talia ułożona tak, by gracze dostali konkretne karty (rozdający 3 → gracz 0 dostaje pierwszy).
+function deckFor(hands, dealerSeat = 3) {
+  const deck = [];
+  for (let i = 0; i < 24; i++) {
+    const seat = (dealerSeat + 1 + i) % 4;
+    deck.push(hands[seat][Math.floor(i / 4)]);
+  }
+  return deck;
+}
+
+test('talia ma 24 unikalne karty i 120 punktów', () => {
+  const d = fullDeck();
+  assert.equal(d.length, 24);
+  assert.equal(new Set(d).size, 24);
+  assert.equal(d.reduce((a, c) => a + cardPoints(c), 0), 120);
+});
+
+test('tasowanie zachowuje karty, każdy gracz dostaje 6 kart', () => {
+  const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(7) });
+  assert.deepEqual(h.hands.map((x) => x.length), [6, 6, 6, 6]);
+  assert.equal(new Set(h.hands.flat()).size, 24);
+  assert.deepEqual(shuffle(fullDeck(), seeded(1)).slice().sort(), fullDeck().slice().sort());
+});
+
+test('licytacja: obowiązkowe 100 u gracza po rozdającym, przebijanie o 10, pas', () => {
+  const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(3) });
+  assert.equal(h.bidding.highestSeat, 1);
+  assert.equal(h.bidding.highest, 100);
+  assert.equal(h.turn, 2);
+  assert.throws(() => applyAction(h, 3, { type: 'bid', value: 110 }), /kolej/);
+  assert.throws(() => applyAction(h, 2, { type: 'bid', value: 105 }), RuleError);
+  assert.throws(() => applyAction(h, 2, { type: 'bid', value: 100 }), /co najmniej 110/);
+  applyAction(h, 2, { type: 'bid', value: 150 });
+  applyAction(h, 3, { type: 'pass' });
+  applyAction(h, 0, { type: 'pass' });
+  assert.equal(h.turn, 1);
+  applyAction(h, 1, { type: 'bid', value: 160 });
+  assert.equal(h.turn, 2); // 3 i 0 spasowali – pomijani
+  applyAction(h, 2, { type: 'pass' });
+  assert.equal(h.phase, 'playing');
+  assert.deepEqual(h.contract, { seat: 1, team: 1, value: 160 });
+  assert.equal(h.turn, 1); // grający wychodzi
+});
+
+test('licytacja bez ograniczenia meldunkami (np. 300 bez meldunku) i limit maxBid', () => {
+  const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(3) });
+  applyAction(h, 2, { type: 'bid', value: 300 });
+  assert.throws(() => applyAction(h, 3, { type: 'bid', value: 410 }), /Maksymalna/);
+});
+
+test('wszyscy pasują → obowiązkowe 100 gra', () => {
+  const h = createHand({ dealerSeat: 2, settings: {}, randomInt: seeded(9) });
+  applyAction(h, 0, { type: 'pass' });
+  applyAction(h, 1, { type: 'pass' });
+  applyAction(h, 2, { type: 'pass' });
+  assert.deepEqual(h.contract, { seat: 3, team: 1, value: 100 });
+});
+
+test('rozstrzyganie lewy: najwyższa do koloru, atut bije', () => {
+  assert.equal(trickWinnerIndex(['KH', 'AH', '9H', 'TH'], null), 1);
+  assert.equal(trickWinnerIndex(['AH', '9S', 'TH', 'KD'], null), 0);
+  assert.equal(trickWinnerIndex(['AH', '9S', 'TH', 'KD'], 'S'), 1);
+  assert.equal(trickWinnerIndex(['AH', '9S', 'JS', 'KD'], 'S'), 2);
+  assert.ok(beats('TH', 'KH', null));
+  assert.ok(!beats('AD', 'KH', null));
+});
+
+function playingState(hands, { dealerSeat = 3, settings = {}, bidder = 0, bid = 100 } = {}) {
+  const h = createHand({ dealerSeat, settings, deck: deckFor(hands, dealerSeat) });
+  // gracz 0 ma obowiązkowe 100 (dealer 3); reszta pasuje, chyba że inny licytujący
+  while (h.phase === 'bidding') {
+    if (h.turn === bidder && h.bidding.highestSeat !== bidder) applyAction(h, h.turn, { type: 'bid', value: bid });
+    else applyAction(h, h.turn, { type: 'pass' });
+  }
+  return h;
+}
+
+const HANDS = [
+  ['AH', 'KH', 'QH', '9C', 'JS', 'TD'],
+  ['TH', '9H', 'AC', 'KC', '9S', 'QD'],
+  ['JH', 'TC', 'QC', 'AS', 'KS', '9D'],
+  ['JC', 'QS', 'TS', 'AD', 'KD', 'JD'],
+];
+
+test('obowiązek koloru i przebicia', () => {
+  const h = playingState(HANDS);
+  assert.equal(h.turn, 0);
+  applyAction(h, 0, { type: 'play', card: 'KH' });
+  // gracz 1 ma TH (bije K) i 9H → musi przebić
+  assert.deepEqual(legalCards(h, 1), ['TH']);
+  assert.throws(() => applyAction(h, 1, { type: 'play', card: '9H' }), /Tej karty nie można/);
+  assert.throws(() => applyAction(h, 1, { type: 'play', card: 'AC' }), /Tej karty nie można/);
+  applyAction(h, 1, { type: 'play', card: 'TH' });
+  // gracz 2 ma tylko JH – musi dołożyć do koloru (nie może przebić)
+  assert.deepEqual(legalCards(h, 2), ['JH']);
+  applyAction(h, 2, { type: 'play', card: 'JH' });
+  // gracz 3 nie ma kiera i nie ma atutu → dowolna
+  assert.equal(legalCards(h, 3).length, 6);
+  applyAction(h, 3, { type: 'play', card: 'JC' });
+  assert.equal(h.tricks[0].winner, 1);
+  assert.equal(h.tricks[0].points, 4 + 10 + 2 + 2);
+  assert.equal(h.turn, 1);
+});
+
+test('meldunek: nie w pierwszej lewie, ustawia atut, wymaga pary K+D, obowiązek atutu i nadbijania', () => {
+  const h = playingState(HANDS);
+  assert.ok(!canMeld(h, 0, 'KH'), 'meldunek w pierwszej lewie zabroniony');
+  assert.throws(() => applyAction(h, 0, { type: 'play', card: 'KH', meld: true }), /Meldunek niedozwolony/);
+  applyAction(h, 0, { type: 'play', card: 'AH' });
+  applyAction(h, 1, { type: 'play', card: '9H' }); // ma TH, ale TH nie bije asa → dowolny kier
+  applyAction(h, 2, { type: 'play', card: 'JH' });
+  applyAction(h, 3, { type: 'play', card: 'JC' });
+  assert.equal(h.tricks[0].winner, 0);
+  assert.ok(canMeld(h, 0, 'KH') && canMeld(h, 0, 'QH'));
+  assert.ok(!canMeld(h, 0, '9C'));
+  applyAction(h, 0, { type: 'play', card: 'QH', meld: true });
+  assert.equal(h.trump, 'H');
+  assert.deepEqual(h.melds[0], { seat: 0, team: 0, suit: 'H', value: 100, trick: 2 });
+  // gracz 1 ma TH (bije damę) → musi przebić
+  assert.deepEqual(legalCards(h, 1), ['TH']);
+  applyAction(h, 1, { type: 'play', card: 'TH' });
+  // gracz 2 nie ma kiera, kier = atut, nie ma atutu → dowolna
+  assert.equal(legalCards(h, 2).length, 5);
+  applyAction(h, 2, { type: 'play', card: 'AS' });
+  applyAction(h, 3, { type: 'play', card: 'AD' });
+  assert.equal(h.tricks[1].winner, 1);
+});
+
+test('brak koloru → obowiązek atutu i nadbicia atutem', () => {
+  const hands = [
+    ['AH', 'KH', 'QH', 'AC', 'JS', '9D'],
+    ['TH', '9H', 'KC', 'QC', '9S', 'QD'],
+    ['JH', 'TC', 'JC', 'AS', 'KS', 'TD'],
+    ['9C', 'QS', 'TS', 'AD', 'KD', 'JD'],
+  ];
+  const h = playingState(hands);
+  applyAction(h, 0, { type: 'play', card: 'AC' });
+  applyAction(h, 1, { type: 'play', card: 'KC' }); // nie bije asa
+  applyAction(h, 2, { type: 'play', card: 'TC' });
+  applyAction(h, 3, { type: 'play', card: '9C' });
+  applyAction(h, 0, { type: 'play', card: 'KH', meld: true }); // atut kier
+  applyAction(h, 1, { type: 'play', card: 'TH' });
+  applyAction(h, 2, { type: 'play', card: 'JH' });
+  // gracz 3 bez kiera i bez atutu
+  applyAction(h, 3, { type: 'play', card: 'JD' });
+  assert.equal(h.tricks[1].winner, 1);
+  // gracz 1 wychodzi karo; gracz 2 ma TD → musi przebić? najwyższa QD (do koloru) → TD bije → musi
+  applyAction(h, 1, { type: 'play', card: 'QD' });
+  assert.deepEqual(legalCards(h, 2), ['TD']);
+  applyAction(h, 2, { type: 'play', card: 'TD' });
+  // gracz 3 ma AD i KD: musi przebić TD → tylko AD
+  assert.deepEqual(legalCards(h, 3), ['AD']);
+  applyAction(h, 3, { type: 'play', card: 'AD' });
+  // gracz 0 ma 9D → do koloru
+  assert.deepEqual(legalCards(h, 0), ['9D']);
+  applyAction(h, 0, { type: 'play', card: '9D' });
+  assert.equal(h.tricks[2].winner, 3);
+  // gracz 3 wychodzi pik QS; gracz 0 ma JS (nie bije) → JS
+  applyAction(h, 3, { type: 'play', card: 'QS' });
+  assert.deepEqual(legalCards(h, 0), ['JS']);
+  applyAction(h, 0, { type: 'play', card: 'JS' });
+  // gracz 1 ma 9S → do koloru
+  applyAction(h, 1, { type: 'play', card: '9S' });
+  applyAction(h, 2, { type: 'play', card: 'AS' });
+  assert.equal(h.tricks[3].winner, 2);
+  // gracz 2 wychodzi KS; gracz 3 ma TS (bije K) → musi
+  applyAction(h, 2, { type: 'play', card: 'KS' });
+  assert.deepEqual(legalCards(h, 3), ['TS']);
+  applyAction(h, 3, { type: 'play', card: 'TS' });
+  // gracz 0: brak pika, ma atuty AH i QH → musi dać atut (którykolwiek – lewę wygrywa pik)
+  assert.deepEqual(legalCards(h, 0), ['AH', 'QH']);
+  applyAction(h, 0, { type: 'play', card: 'QH' });
+  // gracz 1: brak pika, ma atut 9H; najwyższa to QH (atut) → 9H nie nadbije, ale musi dać atut
+  assert.deepEqual(legalCards(h, 1), ['9H']);
+  applyAction(h, 1, { type: 'play', card: '9H' });
+  assert.equal(h.tricks[4].winner, 0);
+});
+
+test('pełne rozdanie losowe: zawsze 120 punktów, legalne ruchy, wynik do historii', () => {
+  for (let seed = 1; seed <= 200; seed++) {
+    const rnd = seeded(seed);
+    const h = createHand({ dealerSeat: seed % 4, settings: {}, randomInt: rnd });
+    while (h.phase === 'bidding') {
+      const t = h.turn;
+      if (rnd(3) === 0 && h.bidding.highest + 10 <= 200) applyAction(h, t, { type: 'bid', value: h.bidding.highest + 10 });
+      else applyAction(h, t, { type: 'pass' });
+    }
+    while (h.phase === 'playing') {
+      const t = h.turn;
+      const legal = legalCards(h, t);
+      assert.ok(legal.length > 0);
+      const card = legal[rnd(legal.length)];
+      applyAction(h, t, { type: 'play', card, meld: canMeld(h, t, card) && rnd(2) === 0 });
+    }
+    assert.equal(h.cardPoints[0] + h.cardPoints[1], 120);
+    assert.equal(h.tricks.length, 6);
+    const seats = ['a', 'b', 'c', 'd'];
+    const r = handToRound(h, seats);
+    assert.equal(r.cards[0] + r.cards[1], 120);
+    assert.equal(r.bidder, seats[h.contract.seat]);
+  }
+});
+
+test('widok gracza nie zawiera kart przeciwników', () => {
+  const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(5) });
+  const v = viewFor(h, 2);
+  assert.deepEqual(v.hand.slice().sort(), h.hands[2].slice().sort());
+  assert.equal(v.hands, undefined);
+  const json = JSON.stringify(v);
+  for (const s of [0, 1, 3]) for (const c of h.hands[s]) assert.ok(!json.includes(`"${c}"`), `wyciek karty ${c}`);
+});
+
+test('nie istnieje mechanika bomby', () => {
+  const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(5) });
+  assert.throws(() => applyAction(h, h.turn, { type: 'bomb' }), RuleError);
+  assert.equal('bombPoints' in DEFAULT_SETTINGS, false);
+});

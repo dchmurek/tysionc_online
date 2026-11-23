@@ -1,0 +1,27 @@
+{
+  "name": "tysiac-online",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tysiąc na krzyż – gra online i licznik punktów offline (Node.js, dane w plikach JSON)",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node server/main.js",
+    "dev": "NODE_ENV=development node --watch server/main.js",
+    "migrate": "node server/scripts/migrate.js",
+    "admin": "node server/scripts/admin.js",
+    "test": "node --test --test-concurrency=1 'tests/unit/*.test.js' 'tests/integration/*.test.js'",
+    "test:e2e": "playwright test",
+    "vendor": "node server/scripts/vendor.js",
+    "postinstall": "node server/scripts/vendor.js"
+  },
+  "dependencies": {
+    "chart.js": "^4.6.1",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}

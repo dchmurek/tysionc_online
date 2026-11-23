@@ -1,0 +1,343 @@
+{
+ "version": 1,
+ "players": [
+  {
+   "id": "p_dam",
+   "name": "Damazy",
+   "created": "2026-10-01T10:00:00.000Z"
+  },
+  {
+   "id": "p_dol",
+   "name": "Dollat",
+   "created": "2026-10-01T10:00:00.000Z"
+  },
+  {
+   "id": "p_kar",
+   "name": "Karol",
+   "created": "2026-10-01T10:00:00.000Z"
+  },
+  {
+   "id": "p_aku",
+   "name": "Akuro",
+   "created": "2026-10-01T10:00:00.000Z"
+  },
+  {
+   "id": "p_aku2",
+   "name": "Akuro",
+   "created": "2026-10-01T10:00:00.000Z",
+   "deleted": true
+  },
+  {
+   "id": "p_dan",
+   "name": "Daniel",
+   "created": "2026-10-01T10:00:00.000Z",
+   "deleted": true
+  },
+  {
+   "id": "p_ban",
+   "name": "Banderowiec",
+   "created": "2026-10-01T10:00:00.000Z",
+   "deleted": true
+  }
+ ],
+ "games": [
+  {
+   "id": "g_one",
+   "mode": "4x",
+   "players": [
+    "p_dam",
+    "p_dol",
+    "p_kar",
+    "p_aku"
+   ],
+   "settings": {
+    "target": 1000,
+    "round10": true,
+    "passiveCap": 990,
+    "bombPoints": 60,
+    "bombLimit": 1,
+    "zeroRule": false,
+    "zeroPenalty": 120,
+    "minBid": 100,
+    "scoreActual": true
+   },
+   "rounds": [
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T18:20:00.000Z",
+     "dealer": "p_dam"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T18:30:00.000Z",
+     "dealer": "p_dol"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T18:40:00.000Z",
+     "dealer": "p_kar"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T18:50:00.000Z",
+     "dealer": "p_aku"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T19:00:00.000Z",
+     "dealer": "p_dam"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T19:10:00.000Z",
+     "dealer": "p_dol"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T19:20:00.000Z",
+     "dealer": "p_kar"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 120,
+     "made": true,
+     "points": {
+      "1": 20
+     },
+     "melds": {
+      "p_kar": [
+       "s"
+      ]
+     },
+     "got": 160,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T19:30:00.000Z",
+     "dealer": "p_aku"
+    }
+   ],
+   "status": "finished",
+   "created": "2026-10-05T18:10:00.000Z",
+   "winner": 0,
+   "finished": "2026-10-05T19:40:00.000Z"
+  },
+  {
+   "id": "g_two",
+   "mode": "4x",
+   "players": [
+    "p_kar",
+    "p_dol",
+    "p_dam",
+    "p_aku"
+   ],
+   "settings": {
+    "target": 1000,
+    "round10": true,
+    "passiveCap": 990,
+    "bombPoints": 60,
+    "bombLimit": 1,
+    "zeroRule": false,
+    "zeroPenalty": 120,
+    "minBid": 100,
+    "scoreActual": true
+   },
+   "rounds": [
+    {
+     "bidder": "p_dol",
+     "bid": 150,
+     "made": true,
+     "points": {
+      "0": 40
+     },
+     "melds": {
+      "p_dol": [
+       "c"
+      ],
+      "p_aku": [
+       "h"
+      ]
+     },
+     "got": 220,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T20:00:00.000Z",
+     "dealer": "p_kar"
+    },
+    {
+     "bidder": "p_kar",
+     "bid": 200,
+     "made": false,
+     "points": {
+      "1": 90
+     },
+     "melds": {
+      "p_dol": [
+       "d"
+      ]
+     },
+     "type": "normal",
+     "t": "2026-10-05T20:10:00.000Z",
+     "dealer": "p_dol"
+    },
+    {
+     "bidder": "p_aku",
+     "bid": 150,
+     "made": true,
+     "points": {
+      "0": 0
+     },
+     "melds": {},
+     "got": 120,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T20:20:00.000Z",
+     "dealer": "p_dam"
+    },
+    {
+     "bidder": "p_dam",
+     "bid": 150,
+     "made": true,
+     "points": {
+      "1": 30
+     },
+     "melds": {},
+     "got": 120,
+     "gotAuto": true,
+     "type": "normal",
+     "t": "2026-10-05T20:30:00.000Z",
+     "dealer": "p_aku"
+    }
+   ],
+   "status": "active",
+   "created": "2026-10-05T19:50:00.000Z"
+  },
+  {
+   "id": "g_three",
+   "mode": "4x",
+   "players": [
+    "p_aku",
+    "p_dam",
+    "p_kar",
+    "p_dol"
+   ],
+   "settings": {
+    "target": 1000,
+    "round10": true,
+    "passiveCap": 990,
+    "bombPoints": 60,
+    "bombLimit": 1,
+    "zeroRule": false,
+    "zeroPenalty": 120,
+    "minBid": 100,
+    "scoreActual": true
+   },
+   "rounds": [
+    {
+     "bidder": "p_aku",
+     "bid": 100,
+     "made": false,
+     "points": {
+      "1": 70
+     },
+     "melds": {},
+     "type": "normal",
+     "t": "2026-10-08T20:50:00.000Z",
+     "dealer": "p_aku"
+    }
+   ],
+   "status": "active",
+   "created": "2026-10-08T20:40:00.000Z"
+  }
+ ]
+}

@@ -1,16 +1,24 @@
 .DS_Store
 dist/
+node_modules/
 
-# Dane produkcyjne i sekrety – nigdy do repozytorium
+# Dane produkcyjne, sekrety i kopie – NIGDY do repozytorium
 data/
+storage/
+storage-*/
+backups-local/
 *.key
-
-# Pliki ze skrótami haseł – w repo są tylko wersje *.example.php
-config.php
-users.php
-
-# Lokalne
+*.enc
 .env
 .env.*
-node_modules/
+!.env.example
+
+# Stara wersja PHP: pliki ze skrótami haseł (w repo tylko *.example.php)
+legacy/php/config.php
+legacy/php/users.php
+
+# Wyniki testów
+test-results/
+playwright-report/
+tests/.tmp/
 .claude/settings.local.json
