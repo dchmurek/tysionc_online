@@ -30,7 +30,6 @@ route('/history', () => import('./views/history.js').then((m) => m.history), { t
 route('/session/:id', () => import('./views/history.js').then((m) => m.session), { tab: 'history' });
 route('/profile', () => import('./views/profile.js').then((m) => m.profile), { tab: 'profile' });
 route('/admin', () => import('./views/admin.js').then((m) => m.admin), { tab: 'profile' });
-route('/roulette', () => import('./views/roulette.js').then((m) => m.roulette), { tab: 'profile' });
 
 const $app = document.getElementById('app');
 const $cta = document.getElementById('cta');

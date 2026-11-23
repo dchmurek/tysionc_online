@@ -40,7 +40,7 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 
 ## Wyniki testów (rzeczywiście wykonane 2026-11-23)
 
-- `npm test`: **99 testów – 99 zaliczonych** (unit: silnik kart, punktacja, statystyki; integracyjne: magazyn, kopie i przywracanie, migracja (także na prawdziwych danych lokalnie), konta, mecze i konflikty, pokoje, 4 graczy online przez WebSocket z restartem serwera, administracja/import, bezpieczeństwo, wydajność).
+- `npm test`: **101 testów – 101 zaliczonych** (unit: silnik kart, punktacja, statystyki; integracyjne: magazyn, kopie i przywracanie, migracja (także na prawdziwych danych lokalnie), konta, mecze i konflikty, pokoje, 4 graczy online przez WebSocket z restartem serwera, administracja/import, bezpieczeństwo, wydajność).
 - `npm run test:e2e` (Playwright + Google Chrome): **21 zaliczonych, 29 pominiętych celowo** (scenariusze ograniczone do wybranych rozdzielczości), 0 błędów. Rozdzielczości: 1920×1080, 1366×768, 768×1024, 390×844, 320×568 i telefon poziomo 844×390.
 - Wydajność: statystyki 2000 meczów / 30 000 rozdań ≈ 50 ms; 200 równoległych zapisów rozdań ≈ 16 ms/zapis (z fsync), bez utraty danych.
 
@@ -51,7 +51,7 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 - Testy na fizycznych telefonach (iOS Safari/Android) – nie wykonane; testy w Chrome z emulacją urządzeń.
 - Limity prób logowania w pamięci (zerują się po restarcie).
 - Brak timera tury w grze online (gracz może myśleć dowolnie długo); unieważnienie rozdania – tylko administrator.
-- Ruletka przeniesiona bez zmian (dla zabawy, dane tylko w telefonie).
+- Ruletka usunięta (decyzja właściciela).
 
 ## Znane błędy
 
@@ -59,8 +59,8 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 
 ## Wymagające decyzji właściciela
 
-- Ustalone 23.11: meldunki trefl 60 / pik 40; kontrakt po zaokrągleniu (158 → 160 = ugrany); administratorami są wszyscy czterej gracze.
-- Pozostałe pytania w `docs/ZASADY.md`: przeliczenie historycznych meldunków wg symbolu (opcjonalnie), zwolnienie z przebijania przy partnerze, obowiązkowe 100.
+- Ustalone 23.11: meldunki pik 60 / trefl 40; kontrakt po zaokrągleniu (158 → 160 = ugrany); administratorami są wszyscy czterej gracze; musik (5 kart + 4 w musiku, grający oddaje po jednej); otwarcie 100 przez gracza po rozdającym; automatyczny meldunek; litery J/Q.
+- Do potwierdzenia: zwolnienie z przebijania przy partnerze, podnoszenie kontraktu po musiku, odkrywanie musika.
 - Hosting (VPS lub sprawdzenie obsługi Node.js w CyberFolks).
 
 ## Kolejne zadania (propozycje)

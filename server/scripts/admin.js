@@ -35,7 +35,7 @@ async function userByNick(nick) {
 try {
   switch (cmd) {
     case 'users': {
-      for (const u of await accounts.allUsers()) console.log(`${u.nick.padEnd(20)} ${u.role.padEnd(7)} ${u.status.padEnd(9)} ${u.id}${u.legacy ? '  (dawniej: ' + u.legacy.names.join(', ') + ')' : ''}`);
+      for (const u of await accounts.allUsers()) console.log(`${u.nick.padEnd(20)} ${u.role.padEnd(7)} ${u.status.padEnd(9)} ${u.id}`);
       break;
     }
     case 'activation': {

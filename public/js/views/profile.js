@@ -15,7 +15,6 @@ export function profile({ el }) {
       <div class="row wrap">
         <a class="btn sm" href="#/stats/player/${encodeURIComponent(u.id)}">${icon('stats')}Moje statystyki</a>
         ${u.role === 'admin' ? html`<a class="btn sm gold" href="#/admin">${icon('shield')}Administracja</a>` : ''}
-        <a class="btn sm" href="#/roulette">${icon('dice')}Ruletka (dla zabawy)</a>
       </div>
       <div class="grid-2">
         <section class="card"><h3>Zmiana nicku</h3>

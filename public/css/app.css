@@ -959,3 +959,16 @@ body.in-game .cta-wrap { bottom: var(--safe-b); }
   .lbl { margin: 6px 2px 4px; }
   .sheet-foot .btn-gold { min-height: 44px; }
 }
+
+/* musik na środku stołu i oddawanie kart */
+.musik { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; }
+.musik .pcard { --w: var(--tw); }
+.musik .pcard + .pcard { margin-left: calc(var(--tw) * -0.55); }
+.controls.giving { text-align: center; }
+.give-to { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.give-to .btn { min-height: 48px; }
+
+/* ręka: karty zmniejszają się, gdy jest ich więcej (np. 9 po zebraniu musika) */
+.hand { --n: 6; gap: 4px; }
+.hand .pcard { --w: min(clamp(46px, 13.2vw, 74px), calc((100vw - 36px) / var(--n) - 4px)); }
+@media (min-width: 900px) { .hand .pcard { --w: min(78px, calc(900px / var(--n) - 8px)); } }

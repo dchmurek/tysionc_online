@@ -21,7 +21,7 @@ export function admin({ el, go }) {
       <section class="card"><h3>Użytkownicy</h3>
         <div class="table-wrap"><table class="tbl"><thead><tr><th class="l">Nick</th><th>Status</th><th>Rola</th><th>Akcje</th></tr></thead><tbody>
         ${d.users.map((u) => html`<tr>
-          <td class="l">${dot(u.id)}<b>${u.nick}</b>${u.legacy ? html`<div class="muted small">dawniej: ${u.legacy.names.join(', ')}</div>` : ''}${u.nickHistory.length ? html`<div class="muted small">poprzednie nicki: ${u.nickHistory.map((h) => h.nick).join(', ')}</div>` : ''}</td>
+          <td class="l">${dot(u.id)}<b>${u.nick}</b></td>
           <td>${u.status === 'active' ? 'aktywne' : u.status === 'pending' ? html`<span class="badge warn">czeka na aktywację</span>` : html`<span class="badge bad">zablokowane</span>`}${u.activationPending ? html`<div class="muted small">kod ważny do ${fmtDateTime(u.activationExpires)}</div>` : ''}</td>
           <td>${u.role === 'admin' ? 'admin' : 'gracz'}</td>
           <td class="actions-cell">

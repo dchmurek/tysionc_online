@@ -52,9 +52,13 @@ async function playHand(roomId) {
     const p = players.find((x) => view(x, roomId).mySeat === turn);
     const v = await waitSeq(p, roomId, v0.seq);
     if (v.hand.phase === 'bidding') await p.wsc.act(roomId, { type: 'pass', expectSeq: v.seq, actionId: `a${v.seq}` });
+    else if (v.hand.phase === 'giving') {
+      const to = [0, 1, 2, 3].find((s) => s !== v.mySeat && !v.hand.given[s]);
+      await p.wsc.act(roomId, { type: 'give', card: v.hand.hand[0], to, expectSeq: v.seq, actionId: `a${v.seq}` });
+    }
     else {
       const card = v.hand.legal[0];
-      await p.wsc.act(roomId, { type: 'play', card, meld: v.hand.meldable.includes(card), expectSeq: v.seq, actionId: `a${v.seq}` });
+      await p.wsc.act(roomId, { type: 'play', card, expectSeq: v.seq, actionId: `a${v.seq}` });
     }
     for (const x of players) await waitSeq(x, roomId, v.seq + 1);
     if (++guard > 60) throw new Error('rozdanie się nie kończy');
@@ -87,10 +91,12 @@ test('każdy widzi tylko swoje karty (serwer nie wysyła kart przeciwników)', a
   const room = srv.app.services.rooms.rooms.get(roomId);
   for (let s = 0; s < 4; s++) {
     const v = view(players[s], roomId);
-    assert.equal(v.hand.hand.length, 6);
+    assert.equal(v.hand.hand.length, 5);
+    assert.equal(v.hand.musikCount, 4);
     assert.deepEqual(v.hand.hand.slice().sort(), room.hand.hands[s].slice().sort());
     const json = JSON.stringify(v);
     for (let o = 0; o < 4; o++) if (o !== s) for (const c of room.hand.hands[o]) assert.ok(!json.includes(`"${c}"`), `gracz ${s} widzi kartę ${c}`);
+    for (const c of room.hand.musik) assert.ok(!json.includes(`"${c}"`), `gracz ${s} widzi musik ${c}`);
   }
 });
 

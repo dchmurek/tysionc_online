@@ -72,13 +72,14 @@ test('nieznany gracz w historii → przerwanie (bez zgadywania)', () => {
   assert.throws(() => planMigration(src), /tabeli mapowania/);
 });
 
-test('meldunki przeniesione wg wartości (stare ♠=60 → trefl 60, stare ♣=40 → pik 40)', () => {
+test('meldunki: stare ♠ 60 → pik 60, stare ♣ 40 → trefl 40 (symbol i wartość zgodne z zasadami)', () => {
   const plan = planMigration(fixture());
   const r = plan.matches.find((m) => m.id === 'g_two').rounds[0];
-  assert.deepEqual(r.melds[ID.Kamil], ['S']); // stare 'c' (40)
+  assert.deepEqual(r.melds[ID.Kamil], ['C']); // stare 'c' (♣ 40)
   assert.deepEqual(r.legacy.melds.p_dol, ['c']);
   const r1 = plan.matches.find((m) => m.id === 'g_one').rounds[0];
-  assert.deepEqual(r1.melds[ID.Karol], ['C']); // stare 's' (60)
+  assert.deepEqual(r1.melds[ID.Karol], ['S']); // stare 's' (♠ 60)
+  assert.ok(plan.matches.every((m) => m.meldsV2 === true));
 });
 
 test('zastosowanie: kopia przed migracją, idempotencja, brak duplikatów, statystyki zachowane', async () => {
@@ -130,4 +131,34 @@ test('prawdziwe dane (lokalnie): 4 profile, wszystkie wyniki identyczne', { skip
   assert.deepEqual(map, { Damazy: 'Daniel', Dollat: 'Kamil', Karol: 'Karol', Akuro: 'Akuro' });
   assert.ok(plan.report.checks.every((c) => c.identical));
   assert.equal(plan.matches.length, plan.report.checks.length);
+});
+
+test('konwersja melds-v2 danych zmigrowanych przed zmianą zasad: tylko stare rozdania, jednorazowo, wyniki bez zmian', async () => {
+  const { upgradeMeldsV2 } = await import('../../server/migrate/meldsV2.js');
+  const { computeMatch } = await import('../../shared/scoring.js');
+  const dir = tmpDir();
+  const store = await new JsonStore(dir, { validators }).init();
+  const plan = planMigration(fixture());
+  // symulacja starej migracji: meldunki zapisane odwrotnie (C↔S), bez znacznika meldsV2
+  const swap = { C: 'S', S: 'C' };
+  const oldStyle = plan.matches.map((m) => { const x = structuredClone(m); delete x.meldsV2; for (const r of x.rounds) for (const u of Object.keys(r.melds)) r.melds[u] = r.melds[u].map((s) => swap[s] || s); return x; });
+  // w aktywnym meczu nowe rozdanie dopisane w nowej aplikacji (pik klikany jako symbol)
+  const active = oldStyle.find((m) => m.status === 'active');
+  active.rounds.push({ id: 'r_new1', mode: 'offline', bidder: active.seats[0], bid: 100, made: true, got: 160, cards: { 1: 20 }, melds: { [active.seats[0]]: ['S'] }, dealer: active.seats[0], createdAt: new Date().toISOString() });
+  for (const m of oldStyle) await store.update('matches/' + m.id, () => m);
+  const res = await upgradeMeldsV2(store, { backup: (l) => createBackup(store, l) });
+  assert.equal(res.converted, oldStyle.length);
+  for (const m of plan.matches) {
+    const now = (await store.get('matches/' + m.id)).data;
+    const legacyRounds = now.rounds.filter((r) => r.scoring === 'legacy');
+    assert.deepEqual(legacyRounds.map((r) => r.melds), m.rounds.map((r) => r.melds), 'stare rozdania = poprawne mapowanie');
+    const cOld = computeMatch(m);
+    const cNow = computeMatch({ ...now, rounds: legacyRounds });
+    assert.deepEqual(cNow.scores, cOld.scores, 'wyniki historyczne co do punktu');
+  }
+  const act = (await store.get('matches/' + active.id)).data;
+  assert.deepEqual(act.rounds.at(-1).melds[active.seats[0]], ['S'], 'nowe rozdanie bez zmian');
+  assert.equal((await upgradeMeldsV2(store)).converted, 0, 'drugi raz nic nie robi');
+  assert.ok((await listBackups(store)).some((b) => b.name.includes('pre-melds-v2')));
+  store.close();
 });

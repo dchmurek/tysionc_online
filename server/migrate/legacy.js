@@ -14,10 +14,9 @@ export const MIGRATION_ID = 'legacy-php-v1';
 export const NAME_MAP = Object.freeze({ Damazy: 'Daniel', Dollat: 'Kamil', Karol: 'Karol', Akuro: 'Akuro' });
 export const CANONICAL = Object.freeze(['Kamil', 'Daniel', 'Karol', 'Akuro']);
 
-// Stara aplikacja zapisywała meldunki kodami h/d/s/c z wartościami 100/80/60/40,
-// przy czym ♠ (s) miał 60, a ♣ (c) 40. Nowa specyfikacja: trefl ♣ 60, pik ♠ 40.
-// Konwersja WG WARTOŚCI zachowuje co do punktu wszystkie historyczne wyniki.
-export const LEGACY_MELD_MAP = Object.freeze({ h: 'H', d: 'D', s: 'C', c: 'S' });
+// Stara aplikacja zapisywała meldunki kodami h/d/s/c = kier 100, karo 80, pik ♠ 60, trefl ♣ 40 –
+// dokładnie jak w zasadach właściciela, więc symbol i wartość się zgadzają (wyniki co do punktu).
+export const LEGACY_MELD_MAP = Object.freeze({ h: 'H', d: 'D', s: 'S', c: 'C' });
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 export const canonicalUserId = (nick) => 'u' + sha('tysiac-canonical-user:' + nick.toLowerCase()).slice(0, 20);
@@ -130,7 +129,7 @@ export function planMigration(legacy, { now = new Date().toISOString() } = {}) {
       },
       rounds, status: g.status, winner: g.winner ?? null, createdAt: g.created, createdBy: null,
       finishedAt: g.finished, updatedAt: g.updated || g.updatedLocal || g.created, groupKey: groupKeyOf(seats), roomId: null,
-      modeHistory: [{ mode: 'offline', at: g.created, by: null, afterRound: 0 }], appliedOps: [],
+      modeHistory: [{ mode: 'offline', at: g.created, by: null, afterRound: 0 }], appliedOps: [], meldsV2: true,
       migratedFrom: { migration: MIGRATION_ID, legacyId: g.id, sourceSha256: sourceSha, legacyPlayers: g.players.slice(), legacySettings: st },
     };
     if (!match.finishedAt) delete match.finishedAt;

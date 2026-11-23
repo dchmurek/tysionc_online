@@ -1,7 +1,7 @@
 // Silnik rozgrywki kartami (tryb online). Czyste funkcje na obiekcie stanu.
 // Serwer jest jedynym właścicielem pełnego stanu; klient dostaje tylko viewFor(seat).
 import {
-  SUITS, RANKS, RANK_INFO, MELD_VALUES, HAND_SIZE, PLAYERS, CARD_POINTS_TOTAL,
+  SUITS, RANKS, RANK_INFO, MELD_VALUES, HAND_SIZE, DEAL_SIZE, MUSIK_SIZE, PLAYERS, CARD_POINTS_TOTAL,
   RuleError, nextSeat, teamOfSeat, normalizeSettings,
 } from './rules.js';
 
@@ -33,21 +33,27 @@ export function sortHand(hand, trump) {
   return hand.slice().sort((a, b) => order.indexOf(cardSuit(a)) - order.indexOf(cardSuit(b)) || rankIndex(a) - rankIndex(b));
 }
 
-// Nowe rozdanie. Pierwszy po rozdającym ma obowiązkowe otwarcie licytacji (minimalna licytacja).
+// Nowe rozdanie: po 5 kart każdemu, 4 karty musika na środek (zakryte).
+// Pierwszy po rozdającym ma obowiązkowe otwarcie licytacji (minimalna licytacja).
+// Zwycięzca licytacji bierze musik i oddaje po jednej (dowolnej) karcie każdemu z pozostałych graczy.
 export function createHand({ dealerSeat, settings, randomInt, deck }) {
   const S = normalizeSettings(settings);
   if (!Number.isInteger(dealerSeat) || dealerSeat < 0 || dealerSeat >= PLAYERS) throw new RuleError('Zły rozdający');
   const cards = deck ? deck.slice() : shuffle(fullDeck(), randomInt);
-  if (cards.length !== PLAYERS * HAND_SIZE || new Set(cards).size !== cards.length) throw new RuleError('Zła talia');
+  if (cards.length !== PLAYERS * DEAL_SIZE + MUSIK_SIZE || new Set(cards).size !== cards.length) throw new RuleError('Zła talia');
   const hands = [[], [], [], []];
-  // Rozdawanie zaczyna się od gracza po lewej rozdającego.
-  for (let i = 0; i < cards.length; i++) hands[(dealerSeat + 1 + i) % PLAYERS].push(cards[i]);
+  // Rozdawanie zaczyna się od gracza po lewej rozdającego; ostatnie 4 karty to musik.
+  const dealt = PLAYERS * DEAL_SIZE;
+  for (let i = 0; i < dealt; i++) hands[(dealerSeat + 1 + i) % PLAYERS].push(cards[i]);
+  const musik = cards.slice(dealt);
   const opener = nextSeat(dealerSeat);
   const state = {
     phase: 'bidding',
     settings: S,
     dealerSeat,
     hands,
+    musik,
+    given: [false, false, false, false],
     bidding: {
       highest: S.minBid,
       highestSeat: opener,
@@ -79,10 +85,15 @@ function nextActiveBidder(state, from) {
 function finishBidding(state) {
   const b = state.bidding;
   state.contract = { seat: b.highestSeat, team: teamOfSeat(b.highestSeat), value: b.highest };
-  state.phase = 'playing';
-  state.turn = b.highestSeat;
-  state.trick = { leader: b.highestSeat, cards: [] };
   state.log.push({ type: 'contract', seat: b.highestSeat, value: b.highest });
+  // Zwycięzca licytacji zbiera musik.
+  state.hands[b.highestSeat] = state.hands[b.highestSeat].concat(state.musik);
+  state.log.push({ type: 'musik', seat: b.highestSeat, cards: state.musik.slice() });
+  state.musik = [];
+  state.phase = 'giving';
+  state.given = [false, false, false, false];
+  state.given[b.highestSeat] = true;
+  state.turn = b.highestSeat;
 }
 
 // Czy karta a bije kartę b (b jest obecnie najwyższa w lewie).
@@ -183,6 +194,25 @@ export function applyAction(state, seat, action) {
     return state;
   }
 
+  if (state.phase === 'giving') {
+    // Grający oddaje po jednej karcie każdemu z pozostałych (dowolną ze swoich kart).
+    if (action.type !== 'give') throw new RuleError('Najpierw rozdaj karty z musika – po jednej każdemu graczowi');
+    const { card, to } = action;
+    if (!Number.isInteger(to) || to < 0 || to >= PLAYERS || to === seat) throw new RuleError('Wybierz innego gracza');
+    if (state.given[to]) throw new RuleError('Ten gracz dostał już kartę');
+    if (!isCard(card) || !state.hands[seat].includes(card)) throw new RuleError('Nie masz tej karty');
+    state.hands[seat] = state.hands[seat].filter((c) => c !== card);
+    state.hands[to].push(card);
+    state.given[to] = true;
+    state.log.push({ type: 'give', seat, to, card });
+    if (state.given.every(Boolean)) {
+      state.phase = 'playing';
+      state.trick = { leader: seat, cards: [] };
+      state.turn = seat;
+    }
+    return state;
+  }
+
   // phase === 'playing'
   if (action.type !== 'play') throw new RuleError('Teraz zagrywa się karty');
   const card = action.card;
@@ -190,8 +220,8 @@ export function applyAction(state, seat, action) {
   const legal = legalCards(state, seat);
   if (!legal.includes(card)) throw new RuleError('Tej karty nie można teraz zagrać (obowiązek koloru, przebicia lub atutu)');
   let meld = null;
-  if (action.meld) {
-    if (!canMeld(state, seat, card)) throw new RuleError('Meldunek niedozwolony w tym momencie');
+  // Meldunek zgłaszany automatycznie: kto wychodzi królem lub damą z pary (gdy meldować wolno), melduje od razu.
+  if (canMeld(state, seat, card)) {
     const suit = cardSuit(card);
     meld = { seat, team: teamOfSeat(seat), suit, value: MELD_VALUES[suit], trick: state.tricks.length + 1 };
     state.melds.push(meld);
@@ -262,6 +292,8 @@ export function viewFor(state, seat) {
     tricksCount: state.tricks.length,
     tricksWon: state.tricksWon.slice(),
     handCounts: state.hands.map((h) => h.length),
+    musikCount: state.musik ? state.musik.length : 0,
+    given: state.given ? state.given.slice() : [true, true, true, true],
     hand: seat >= 0 ? sortHand(state.hands[seat], state.trump) : [],
     legal: seat >= 0 ? legalCards(state, seat) : [],
     meldable: seat >= 0 ? meldableCards(state, seat) : [],

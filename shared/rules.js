@@ -1,14 +1,15 @@
 // Zasady Tysiąca na krzyż – wspólne dla serwera i przeglądarki.
 // Kolory kart: H kier, D karo, C trefl (żołądź), S pik (wino).
 
-export const SUITS = ['H', 'D', 'C', 'S'];
+export const SUITS = ['H', 'D', 'S', 'C'];
+// Meldunki wg zasad właściciela: kier 100, karo 80, pik 60, trefl 40.
 export const SUIT_INFO = {
   H: { symbol: '♥', name: 'kier', meld: 100, red: true },
   D: { symbol: '♦', name: 'karo', meld: 80, red: true },
-  C: { symbol: '♣', name: 'trefl', meld: 60, red: false },
-  S: { symbol: '♠', name: 'pik', meld: 40, red: false },
+  S: { symbol: '♠', name: 'pik', meld: 60, red: false },
+  C: { symbol: '♣', name: 'trefl', meld: 40, red: false },
 };
-export const MELD_VALUES = { H: 100, D: 80, C: 60, S: 40 };
+export const MELD_VALUES = { H: 100, D: 80, S: 60, C: 40 };
 
 // Figury od najsilniejszej. Wartości punktowe kart.
 export const RANKS = ['A', 'T', 'K', 'Q', 'J', '9'];
@@ -16,12 +17,14 @@ export const RANK_INFO = {
   A: { label: 'A', name: 'as', points: 11 },
   T: { label: '10', name: 'dziesiątka', points: 10 },
   K: { label: 'K', name: 'król', points: 4 },
-  Q: { label: 'D', name: 'dama', points: 3 },
-  J: { label: 'W', name: 'walet', points: 2 },
+  Q: { label: 'Q', name: 'dama', points: 3 },
+  J: { label: 'J', name: 'walet', points: 2 },
   9: { label: '9', name: 'dziewiątka', points: 0 },
 };
 export const CARD_POINTS_TOTAL = 120;
-export const HAND_SIZE = 6;
+export const HAND_SIZE = 6;   // kart w ręce po rozdaniu musika = liczba lew
+export const DEAL_SIZE = 5;   // każdy dostaje po 5 kart
+export const MUSIK_SIZE = 4;  // 4 karty musika na środku stołu
 export const PLAYERS = 4;
 
 export const ROUNDING_MODES = ['nearest10', 'down10', 'exact'];

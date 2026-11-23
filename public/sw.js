@@ -1,12 +1,12 @@
 // Service Worker: cache WYŁĄCZNIE zasobów statycznych (powłoka aplikacji).
 // Dane z /api/ nigdy nie trafiają do cache Service Workera (prywatne dane innych użytkowników).
-const VERSION = 'tysiac-v2.0.0';
+const VERSION = 'tysiac-v2.1.0';
 const SHELL = [
   '/', '/index.html', '/css/app.css', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',
   '/vendor/chart.umd.min.js',
   '/js/main.js', '/js/dom.js', '/js/api.js', '/js/state.js', '/js/ws.js', '/js/ui.js',
   '/js/views/auth.js', '/js/views/home.js', '/js/views/offline.js', '/js/views/match.js', '/js/views/charts.js',
-  '/js/views/online.js', '/js/views/stats.js', '/js/views/history.js', '/js/views/profile.js', '/js/views/admin.js', '/js/views/roulette.js',
+  '/js/views/online.js', '/js/views/stats.js', '/js/views/history.js', '/js/views/profile.js', '/js/views/admin.js',
   '/shared/rules.js', '/shared/scoring.js', '/shared/stats.js', '/shared/nick.js', '/shared/cards.js',
 ];
 

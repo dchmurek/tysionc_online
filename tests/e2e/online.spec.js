@@ -50,10 +50,12 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
   await host.click('#cta [data-act=start]');
   for (const p of pages) await expect(p.locator('.felt-table')).toBeVisible();
   // każdy widzi 6 swoich kart i karty przeciwników jako rewersy (lub ukryte)
-  for (const p of pages) await expect(p.locator('.hand .pcard')).toHaveCount(6);
+  for (const p of pages) await expect(p.locator('.hand .pcard')).toHaveCount(5); // po 5 kart + 4 w musiku
+  await expect(host.locator('.musik .pcard')).toHaveCount(4);
   await host.screenshot({ path: `test-results/screens/${testInfo.project.name}-31-bidding.png` });
 
   let shotPlay = false;
+  let giveShot = false;
   // Pętla graczy: kto ma ruch, ten pasuje w licytacji albo zagrywa pierwszą dozwoloną kartę.
   // Stan zmienia się asynchronicznie (WebSocket), więc pojedyncza próba może trafić na przerysowanie – wtedy ponawiamy.
   for (let step = 0; step < 200; step++) {
@@ -64,6 +66,11 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
       try {
         if (await p.locator('.controls.bidding').count()) {
           await p.locator('[data-act=pass]').click({ timeout: 1500 });
+        } else if (await p.locator('.controls.giving').count()) {
+          // musik: wybierz kartę i oddaj ją kolejnemu graczowi
+          if (!giveShot) { giveShot = true; await p.screenshot({ path: `test-results/screens/${testInfo.project.name}-31b-musik.png` }); }
+          await p.locator('.hand .pcard').first().click({ timeout: 1500 });
+          await p.locator('[data-act=give]').first().click({ timeout: 1500 });
         } else {
           const playable = p.locator('.hand .pcard.playable').first();
           await playable.click({ timeout: 1500 });

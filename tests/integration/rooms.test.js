@@ -46,3 +46,20 @@ test('kontynuacja meczu online: miejsca zarezerwowane dla graczy meczu; obcy nie
   assert.equal(again.id, room.id, 'jeden pokój na mecz');
   await assert.rejects(svc.rooms.create(obcy, { fromMatchId: m.id }), /Nie grasz/);
 });
+
+test('musik: grający oddaje karty; oddana karta widoczna tylko dla odbiorcy (dziennik bez karty)', async () => {
+  const { room, u } = await startedRoom();
+  const h = room.hand;
+  while (h.phase === 'bidding') await svc.rooms.act(u[h.turn], room.id, { type: 'pass' });
+  const b = h.contract.seat;
+  assert.equal(h.hands[b].length, 9);
+  const others = [0, 1, 2, 3].filter((s) => s !== b);
+  const card = h.hands[b][0];
+  await svc.rooms.act(u[b], room.id, { type: 'give', card, to: others[0] });
+  const viewRecipient = JSON.stringify(svc.rooms.viewFor(room, u[others[0]].id));
+  const viewThird = JSON.stringify(svc.rooms.viewFor(room, u[others[1]].id));
+  assert.ok(viewRecipient.includes(`"${card}"`), 'odbiorca widzi kartę');
+  assert.ok(!viewThird.includes(`"${card}"`), 'inni nie widzą oddanej karty');
+  assert.equal(room.log.at(-1).type, 'give');
+  assert.equal(room.log.at(-1).card, undefined);
+});

@@ -80,7 +80,8 @@ export function room({ el, params, go, setCta, setBar }) {
   let selected = null;
   let lastHandNo = null;
   let busy = false;
-  let lastTrickShownFor = null;
+  let flashTrick = null;
+  let flashTimer = null;
 
   connect();
   subscribeRoom(roomId);
@@ -175,8 +176,9 @@ export function room({ el, params, go, setCta, setBar }) {
     const me = view.mySeat;
     const myTurn = h && h.turn === me && h.phase !== 'finished';
     const contract = h && h.contract;
-    const center = h && h.trick && h.trick.cards.length ? h.trick.cards : (h && h.lastTrick ? h.lastTrick.cards : []);
-    const showingLast = h && h.trick && !h.trick.cards.length && h.lastTrick;
+    const flash = h && h.trick && !h.trick.cards.length && h.lastTrick && flashTrick === h.tricksCount;
+    const center = h && h.trick && h.trick.cards.length ? h.trick.cards : (flash ? h.lastTrick.cards : []);
+    const showingLast = flash;
     const teamsTxt = sc ? sc.c.teams : [[view.seats[0], view.seats[2]], [view.seats[1], view.seats[3]]];
     mount(el, html`
       <div class="game">
@@ -193,14 +195,14 @@ export function room({ el, params, go, setCta, setBar }) {
           <div class="trick ${showingLast ? 'last' : ''}">
             ${center.map((x) => html`<div class="tc ${rel(x.seat)}">${card(x.card)}</div>`)}
             ${showingLast ? html`<div class="trick-note">lewę bierze ${nick(view.seats[h.lastTrick.winner])} (+${h.lastTrick.points})</div>` : ''}
-            ${h && !center.length ? html`<div class="trick-note">${h.phase === 'bidding' ? 'licytacja' : myTurn ? 'wyjdź kartą' : ''}</div>` : ''}
+            ${h && h.phase === 'bidding' ? html`<div class="musik" aria-label="Musik – 4 karty">${Array.from({ length: h.musikCount }, () => card(null, { back: true }))}</div>` : ''}
+            ${h && !center.length ? html`<div class="trick-note">${h.phase === 'bidding' ? 'musik' : h.phase === 'giving' ? `${nick(view.seats[h.contract.seat])} rozdaje karty z musika` : myTurn ? 'wyjdź kartą' : ''}</div>` : ''}
           </div>
         </div>
-        <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
+        <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'giving' ? (myTurn ? 'Wziąłeś musik – rozdaj po jednej karcie' : `${nick(view.seats[h.turn])} bierze musik i rozdaje karty`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
         ${view.status === 'playing' && h ? drawControls(h, myTurn) : drawResult()}
-        ${me >= 0 && h ? html`<div class="hand" role="group" aria-label="Twoje karty">${h.hand.map((c) => card(c, { act: 'card', playable: myTurn && h.phase === 'playing' && h.legal.includes(c), dim: myTurn && h.phase === 'playing' && !h.legal.includes(c), selected: selected === c, meld: h.meldable.includes(c) }))}</div>` : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
-        ${state.me.role === 'admin' && view.status === 'playing' ? html`<button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie (admin)</button>` : ''}
-        <details class="glog"><summary>Ostatnie akcje</summary><ol>${(view.log || []).slice().reverse().map((x) => html`<li>${x.type === 'abort' ? 'Rozdanie unieważnione przez administratora' : html`${nick(view.seats[x.seat])}: `}${x.type === 'abort' ? '' : x.type === 'bid' ? `licytuje ${x.value}` : x.type === 'pass' ? 'pas' : html`${x.meld ? 'melduje i ' : ''}zagrywa ${card(x.card, { small: true })}`}</li>`)}</ol></details>
+        ${me >= 0 && h ? html`<div class="hand" role="group" aria-label="Twoje karty" style="--n:${h.hand.length}">${h.hand.map((c) => card(c, { act: 'card', playable: myTurn && ((h.phase === 'playing' && h.legal.includes(c)) || h.phase === 'giving'), dim: myTurn && h.phase === 'playing' && !h.legal.includes(c), selected: selected === c, meld: h.meldable.includes(c) }))}</div>` : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
+        ${state.me.role === 'admin' && view.status === 'playing' ? html`<details class="glog"><summary>Opcje administratora</summary><button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie</button></details>` : ''}
       </div>`);
     setCta('');
   }
@@ -217,15 +219,22 @@ export function room({ el, params, go, setCta, setBar }) {
         <button type="button" class="btn danger wide" data-act="pass">Pas</button>
       </div>`;
     }
+    if (h.phase === 'giving') {
+      const left = [0, 1, 2, 3].filter((s) => s !== view.mySeat && !h.given[s]);
+      return html`<div class="controls giving">
+        <div class="muted small">Masz musik. Oddaj po jednej dowolnej karcie każdemu graczowi (${left.length} ${left.length === 1 ? 'została' : 'zostały'}).</div>
+        ${selected ? html`<div class="give-to">${left.map((s) => html`<button type="button" class="btn gold" data-act="give" data-to="${s}">Daj ${card(selected, { small: true })} → ${nick(view.seats[s])}</button>`)}</div>`
+          : html`<div class="muted small">Wybierz kartę z ręki.</div>`}
+      </div>`;
+    }
     if (selected && h.legal.includes(selected)) {
       const meld = h.meldable.includes(selected);
       const s = selected[1];
       return html`<div class="controls play">
-        <button type="button" class="btn-gold" data-act="play">Zagraj ${card(selected, { small: true })}</button>
-        ${meld ? html`<button type="button" class="btn gold" data-act="play-meld">Melduj ${suitSym(s)} ${SUIT_INFO[s].meld} i zagraj</button>` : ''}
+        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld} i zagraj` : 'Zagraj'} ${card(selected, { small: true })}</button>
       </div>`;
     }
-    return html`<div class="controls muted small">${h.meldable.length ? 'Masz meldunek – wybierz króla lub damę, aby zameldować.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
+    return html`<div class="controls muted small">${h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
   }
 
   function drawResult() {
@@ -280,15 +289,17 @@ export function room({ el, params, go, setCta, setBar }) {
       case 'pass': send({ type: 'pass' }); break;
       case 'card': {
         const c = a.dataset.card;
-        if (!h || h.phase !== 'playing' || h.turn !== view.mySeat) return;
-        if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać'); return; }
+        if (!h || h.turn !== view.mySeat) return;
+        if (h.phase === 'giving') { selected = selected === c ? null : c; draw(); return; }
+        if (h.phase !== 'playing') return;
+        if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub atutu'); return; }
         if (selected === c && !h.meldable.includes(c)) { selected = null; send({ type: 'play', card: c }); return; }
         selected = c;
         draw();
         break;
       }
       case 'play': { const c = selected; selected = null; send({ type: 'play', card: c }); break; }
-      case 'play-meld': { const c = selected; selected = null; send({ type: 'play', card: c, meld: true }); break; }
+      case 'give': { const c = selected; selected = null; send({ type: 'give', card: c, to: Number(a.dataset.to) }); break; }
       default:
     }
   };
@@ -308,6 +319,12 @@ export function room({ el, params, go, setCta, setBar }) {
       if (view.matchId && !matchById(view.matchId)) loadData();
       if (prev && prev.hand && view.hand && view.hand.turn === view.mySeat && prev.hand.turn !== view.mySeat) vibrate([10, 40, 10]);
       if (selected && (!view.hand || !view.hand.hand.includes(selected))) selected = null;
+      // Ukończona lewa zostaje chwilę na stole, żeby każdy zobaczył ostatnią kartę – potem znika.
+      if (view.hand && prev && prev.hand && view.hand.tricksCount > prev.hand.tricksCount) {
+        flashTrick = view.hand.tricksCount;
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => { flashTrick = null; draw(); }, 1600);
+      }
       draw();
     }
     if (m.type === 'status') draw();

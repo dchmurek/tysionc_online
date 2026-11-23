@@ -31,6 +31,9 @@ export async function createApp(config, { log = makeLogger(config.logLevel), ran
   if (!(await store.get('config'))) await store.update('config', () => ({ registrationOpen: true, defaultSettings: { ...DEFAULT_SETTINGS } }));
   if (!(await store.get('meta'))) await store.update('meta', () => ({ schemaVersion: 2, createdAt: new Date().toISOString(), migrations: [] }));
 
+  const { upgradeMeldsV2 } = await import('./migrate/meldsV2.js');
+  await upgradeMeldsV2(store, { backup: (l) => createBackup(store, l), log });
+
   const accounts = new Accounts(store, { audit, getConfig, limits: { registerPerHour: config.registerPerHour } });
   let rooms = null;
   let realtime = null;

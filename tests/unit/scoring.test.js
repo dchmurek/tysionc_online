@@ -10,8 +10,10 @@ const R = (bidder, bid, oppCards, melds = {}, extra = {}) => ({ bidder, bid, car
 test('kontrakt zrealizowany: drużyna dostaje faktycznie ugrane (120 → 170)', () => {
   const c = computeMatch(M([R('A1', 120, 20, { A2: ['D'] })])); // 100 z kart + 80 = 180? (120-20=100) +80 = 180
   assert.deepEqual(c.scores, [180, 20]);
-  const c2 = computeMatch(M([R('A1', 120, 30, { A1: ['C'] })])); // 90 + 60 = 150 → +150
+  const c2 = computeMatch(M([R('A1', 120, 30, { A1: ['S'] })])); // 90 + pik 60 = 150 → +150
   assert.deepEqual(c2.scores, [150, 30]);
+  const c3 = computeMatch(M([R('A1', 120, 30, { A1: ['C'] })])); // 90 + trefl 40 = 130
+  assert.deepEqual(c3.scores, [130, 30]);
 });
 
 test('przykład ze specyfikacji: licytacja 120, zdobyte 170 → +170', () => {
@@ -21,15 +23,15 @@ test('przykład ze specyfikacji: licytacja 120, zdobyte 170 → +170', () => {
 });
 
 test('kontrakt niezrealizowany: −deklaracja (160, zdobyte 120 → −160)', () => {
-  const c = computeMatch(M([R('B1', 160, 20, { B2: ['C'], A1: ['S'] })])); // B: 100+60=160?? – zróbmy jasno poniżej
+  const c = computeMatch(M([R('B1', 160, 20, { B2: ['S'], A1: ['C'] })])); // B: 100 + pik 60 = 160 // B: 100+60=160?? – zróbmy jasno poniżej
   assert.equal(c.rows[0].made, true);
-  const c2 = computeMatch(M([R('B1', 160, 60, { B2: ['C'] })])); // B: 60 kart + 60 = 120 < 160
+  const c2 = computeMatch(M([R('B1', 160, 60, { B2: ['S'] })])); // B: 60 kart + pik 60 = 120 < 160
   assert.equal(c2.rows[0].made, false);
   assert.deepEqual(c2.rows[0].deltas, [60, -160]);
 });
 
 test('przeciwnicy dostają swoje punkty z kart + meldunki (zaokrąglone)', () => {
-  const c = computeMatch(M([R('A1', 100, 37, { B1: ['S'] })])); // B: 37+40=77 → 80; A: 83 < 100 → −100
+  const c = computeMatch(M([R('A1', 100, 37, { B1: ['C'] })])); // B: 37 + trefl 40 = 77 → 80; A: 83 < 100 → −100
   assert.deepEqual(c.scores, [-100, 80]);
 });
 
@@ -121,9 +123,9 @@ test('kolejny rozdający po kolei wg miejsc', () => {
 test('walidacja: nie można oznaczyć ugranego kontraktu przy za małych punktach', () => {
   assert.throws(() => validateRoundInput(M(), { bidder: 'A1', bid: 150, made: true, cards: { 1: 90 }, melds: {} }), /za mało/);
   assert.throws(() => validateRoundInput(M(), { bidder: 'A1', bid: 100, made: false, cards: { 1: 0 }, melds: {} }), /zrealizowany/);
-  const ok = validateRoundInput(M(), { bidder: 'A1', bid: 100, made: true, cards: { 1: 10 }, melds: { A2: ['S'] } });
+  const ok = validateRoundInput(M(), { bidder: 'A1', bid: 100, made: true, cards: { 1: 10 }, melds: { A2: ['C'] } });
   assert.equal(ok.made, true);
-  assert.equal(ok.got, 150);
+  assert.equal(ok.got, 150); // 110 + trefl 40
 });
 
 test('walidacja: wymagane punkty przeciwników, zakresy, unikalne meldunki, suma 120', () => {
