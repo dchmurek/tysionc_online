@@ -278,12 +278,14 @@ export function room({ el, params, go, setCta, setBar }) {
     if (!lh) return view.status === 'between' && view.mySeat >= 0 ? (setTimeout(() => setCta(html`<button class="btn-ghost" data-act="detach">Tryb offline</button><button class="btn-gold" data-act="ready" ${view.ready[view.mySeat] ? raw('disabled') : ''}>Następne rozdanie ♠</button>`)), html`<p class="notice warn">Rozdanie zostało unieważnione.</p>`) : '';
     const teams = sc ? sc.c.teams : [[view.seats[0], view.seats[2]], [view.seats[1], view.seats[3]]];
     const meldTeam = [0, 1].map((t) => lh.melds.filter((x) => x.team === t).reduce((a, x) => a + x.value, 0));
+    const meldLost = [0, 1].map((t) => meldTeam[t] > 0 && lh.cardPoints[t] === 0);
     const myReady = me >= 0 && view.ready[me];
     const out = html`<section class="card result">
       <h3>${view.status === 'finished' ? html`${icon('crown')} Wygrywają ${teams[lh.winner].map(nick).join(' & ')}!` : `Rozdanie ${lh.handNo} zakończone`}</h3>
       <p>Kontrakt <b>${lh.contract.value}</b> – ${nick(view.seats[lh.contract.seat])}: ${lh.made ? html`<span class="good">ugrany</span>` : html`<span class="bad">nieugrany</span>`}</p>
       <div class="table-wrap"><table class="tbl"><thead><tr><th class="l">Drużyna</th><th>Karty</th><th>Meldunki</th><th>Zmiana</th><th>Wynik</th></tr></thead>
-      <tbody>${[0, 1].map((t) => html`<tr><td class="l">${teamDots(teams[t])} ${teams[t].map(nick).join(' & ')}</td><td>${lh.cardPoints[t]}</td><td>${meldTeam[t]}</td><td class="${lh.deltas[t] > 0 ? 'good' : lh.deltas[t] < 0 ? 'bad' : ''}">${signed(lh.deltas[t])}</td><td><b>${fmtNum(lh.scores[t])}</b></td></tr>`)}</tbody></table></div>
+      <tbody>${[0, 1].map((t) => html`<tr><td class="l">${teamDots(teams[t])} ${teams[t].map(nick).join(' & ')}</td><td>${lh.cardPoints[t]}</td><td>${meldLost[t] ? html`<s title="bez punktów z kart meldunek się nie liczy">${meldTeam[t]}</s>` : meldTeam[t]}</td><td class="${lh.deltas[t] > 0 ? 'good' : lh.deltas[t] < 0 ? 'bad' : ''}">${signed(lh.deltas[t])}</td><td><b>${fmtNum(lh.scores[t])}</b></td></tr>`)}</tbody></table></div>
+      ${meldLost.some(Boolean) ? html`<p class="muted small">Przekreślony meldunek przepadł – drużyna nie zdobyła żadnych punktów z kart.</p>` : ''}
       ${view.status === 'between' ? html`<p class="muted small">Gotowi: ${view.seats.filter((_, i) => view.ready[i]).map(nick).join(', ') || 'nikt'}</p>` : ''}
     </section>`;
     if (view.status === 'between' && me >= 0) setTimeout(() => setCta(html`<button class="btn-ghost" data-act="detach">Tryb offline</button><button class="btn-gold" data-act="ready" ${myReady ? raw('disabled') : ''}>${myReady ? 'Czekam na innych…' : 'Następne rozdanie ♠'}</button>`));

@@ -151,3 +151,17 @@ test('ustawienia są walidowane', () => {
   assert.equal(normalizeSettings({}).rounding, 'nearest10');
   assert.equal(normalizeSettings({}).contractCheck, 'rounded');
 });
+
+test('meldunek liczy się tylko, gdy drużyna zdobyła jakiekolwiek punkty z kart', () => {
+  // przeciwnicy: 0 z kart + meldunek kier 100 → meldunek przepada, dostają 0
+  const c = computeMatch(M([R('A1', 120, 0, { B1: ['H'] })]));
+  assert.deepEqual(c.rows[0].deltas, [120, 0]);
+  // przeciwnicy: choćby 2 pkt z kart → meldunek się liczy (2 + 100 = 102 → 100)
+  const c2 = computeMatch(M([R('A1', 120, 2, { B1: ['H'] })]));
+  assert.deepEqual(c2.rows[0].deltas, [120, 100]);
+  // grający bez żadnych punktów z kart: meldunek nie ratuje kontraktu
+  const c3 = computeMatch(M([R('A1', 100, 120, { A1: ['H'] })]));
+  assert.equal(c3.rows[0].made, false);
+  assert.deepEqual(c3.rows[0].deltas, [-100, 120]);
+  assert.deepEqual(evaluateRound(M(), R('A1', 120, 0, { B1: ['H'] })).meldsLost, [1]);
+});

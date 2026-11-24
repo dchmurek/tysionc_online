@@ -1,7 +1,7 @@
 // Tryb offline: nowy mecz i stół z licznikiem punktów (prawdziwe karty).
 import { html, mount, $, toast, confirmBox, dialog, fmtNum, signed, fmtDateTime, vibrate, raw } from '../dom.js';
 import { state, nick, matchById, matchOp, createMatch, subscribe, post, pendingFor, loadData } from '../state.js';
-import { computeMatch, validateRoundInput, teamOfUser, meldPointsOf } from '/shared/scoring.js';
+import { computeMatch, validateRoundInput, teamOfUser, meldPointsOf, meldsCount } from '/shared/scoring.js';
 import { SUIT_INFO, DEFAULT_SETTINGS, CARD_POINTS_TOTAL } from '/shared/rules.js';
 import { icon, dot, colorOf, suitSym, teamDots } from '../ui.js';
 
@@ -232,9 +232,13 @@ export function table({ el, params, go, setCta, setBar }) {
     for (const [pid, l] of Object.entries(d.melds)) for (const s of l) taken[s] = pid;
     const chips = [];
     for (let b = S.minBid; b <= Math.max(S.minBid + 150, d.bid + 30) && b <= S.maxBid; b += S.bidStep) chips.push(b);
-    const bidderMelds = bs >= 0 ? meldPointsOf(d.melds, teams[bs]) : 0;
-    const oppMelds = bs >= 0 ? meldPointsOf(d.melds, teams[1 - bs]) : 0;
     const bidderCards = d.opp === '' ? null : CARD_POINTS_TOTAL - Number(d.opp);
+    const oppCards = d.opp === '' ? null : Number(d.opp);
+    // meldunki przepadają, gdy drużyna nie ma żadnych punktów z kart
+    const bidderMeldsAll = bs >= 0 ? meldPointsOf(d.melds, teams[bs]) : 0;
+    const oppMeldsAll = bs >= 0 ? meldPointsOf(d.melds, teams[1 - bs]) : 0;
+    const bidderMelds = meldsCount(bidderCards) ? bidderMeldsAll : 0;
+    const oppMelds = meldsCount(oppCards) ? oppMeldsAll : 0;
 
     mount(sheetRoot, html`<div class="sheet-backdrop ${first ? '' : 'static'}" data-act="close-sheet"></div>
       <section class="sheet ${first ? '' : 'static'}" tabindex="-1" role="dialog" aria-modal="true" aria-label="${editing ? 'Poprawka rozdania' : 'Nowe rozdanie'}">
@@ -258,6 +262,7 @@ export function table({ el, params, go, setCta, setBar }) {
             <div class="ofield got"><div class="on-name">${teamDots(teams[bs])}grający · razem</div><div class="ov ${bidderCards == null ? 'ph' : ''}">${bidderCards == null ? '—' : bidderCards + bidderMelds}</div>
               <div class="calc">${bidderCards == null ? 'wpisz punkty przeciwników' : `120 − ${d.opp}${bidderMelds ? ` + ${bidderMelds}` : ''}`}</div></div>
           </div>
+          ${(oppMeldsAll && !oppMelds) || (bidderMeldsAll && !bidderMelds) ? html`<p class="notice warn small">Meldunek nie liczy się – drużyna ${teams[oppMeldsAll && !oppMelds ? 1 - bs : bs].map((p) => nick(p)).join(' & ')} nie ma żadnych punktów z kart.</p>` : ''}
           <div class="keypad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clr', '0', 'del'].map((k) => html`<button type="button" class="key ${k.length > 1 ? 'fn' : ''}" data-act="key" data-k="${k}" aria-label="${k === 'del' ? 'Usuń cyfrę' : k === 'clr' ? 'Wyczyść' : k}">${k === 'del' ? icon('backspace') : k === 'clr' ? 'C' : k}</button>`)}</div>
           <div class="lbl">Meldunki <span class="muted">(król + dama w kolorze)</span></div>
           <div class="melds">${m.seats.map((pid) => html`<div class="meld-row"><div class="mn">${dot(pid)}${nick(pid)}${teamOfUser(m, pid) === bs ? html` <small>grający</small>` : ''}</div>

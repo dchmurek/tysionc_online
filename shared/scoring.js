@@ -20,6 +20,12 @@ export function meldPointsOf(melds, userIds) {
   return sum;
 }
 
+// Zasada właściciela: meldunki drużyny liczą się tylko wtedy, gdy drużyna zdobyła jakiekolwiek punkty z kart.
+// cards = punkty drużyny z kart (null = jeszcze nie wpisane – wtedy meldunki pokazujemy warunkowo jako liczone).
+export function meldsCount(cards) {
+  return cards == null || cards > 0;
+}
+
 // Ocena jednego rozdania (bez limitu 990 – ten zależy od wyniku przed rozdaniem).
 export function evaluateRound(match, round, settings) {
   const S = settings || normalizeSettings(match.settings);
@@ -28,10 +34,10 @@ export function evaluateRound(match, round, settings) {
   if (bs < 0) throw new RuleError('Licytujący nie gra w tym meczu');
   const os = 1 - bs;
   const cards = round.cards || {};
-  const meldsB = meldPointsOf(round.melds, teams[bs]);
-  const meldsO = meldPointsOf(round.melds, teams[os]);
   const cardsO = cards[os] ?? null;
   const cardsB = cards[bs] ?? (cardsO != null ? CARD_POINTS_TOTAL - cardsO : null);
+  const meldsBAll = meldPointsOf(round.melds, teams[bs]);
+  const meldsOAll = meldPointsOf(round.melds, teams[os]);
   const deltas = [0, 0];
 
   if (round.scoring === 'legacy') {
@@ -39,9 +45,13 @@ export function evaluateRound(match, round, settings) {
     // żeby historyczne wyniki nie zmieniły się ani o punkt.
     const got = round.got != null ? roundPoints(round.got, S.rounding) : 0;
     deltas[bs] = round.made ? Math.max(round.bid, got) : -round.bid;
-    deltas[os] = roundPoints(cardsO ?? 0, S.rounding) + meldsO;
-    return { bidderTeam: bs, made: !!round.made, bidderRaw: round.got ?? null, oppRaw: cardsO == null ? null : cardsO + meldsO, deltas };
+    deltas[os] = roundPoints(cardsO ?? 0, S.rounding) + meldsOAll;
+    return { bidderTeam: bs, made: !!round.made, bidderRaw: round.got ?? null, oppRaw: cardsO == null ? null : cardsO + meldsOAll, deltas };
   }
+
+  // Meldunki bez żadnych punktów z kart przepadają.
+  const meldsB = meldsCount(cardsB) ? meldsBAll : 0;
+  const meldsO = meldsCount(cardsO) ? meldsOAll : 0;
 
   const bidderRaw = cardsB == null ? null : cardsB + meldsB;
   const oppRaw = cardsO == null ? null : cardsO + meldsO;
@@ -49,7 +59,7 @@ export function evaluateRound(match, round, settings) {
   const made = checkValue != null && checkValue >= round.bid;
   deltas[bs] = made ? roundPoints(bidderRaw, S.rounding) : -round.bid;
   deltas[os] = oppRaw == null ? 0 : roundPoints(oppRaw, S.rounding);
-  return { bidderTeam: bs, made, bidderRaw, oppRaw, deltas };
+  return { bidderTeam: bs, made, bidderRaw, oppRaw, deltas, meldsLost: [bs, os].filter((t) => (t === bs ? meldsBAll && !meldsB : meldsOAll && !meldsO)) };
 }
 
 // Przelicza cały mecz.
