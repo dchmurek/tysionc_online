@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fullDeck, shuffle, createHand, applyAction, legalCards, canMeld, viewFor, handToRound,
-  cardPoints, beats, trickWinnerIndex,
+  cardPoints, beats, trickWinnerIndex, meldOnSeat, meldableCards,
 } from '../../shared/cards.js';
 import { DEFAULT_SETTINGS, RuleError } from '../../shared/rules.js';
 
@@ -228,7 +228,7 @@ test('pełne rozdanie losowe: zawsze 120 punktów, legalne ruchy, wynik do histo
       const legal = legalCards(h, t);
       assert.ok(legal.length > 0);
       const card = legal[rnd(legal.length)];
-      const meldable = canMeld(h, t, card);
+      const meldable = canMeld(h, t, card) || meldOnSeat(h, t, card) >= 0;
       const before = h.melds.length;
       applyAction(h, t, { type: 'play', card });
       assert.equal(h.melds.length, before + (meldable ? 1 : 0), 'meldunek zawsze zgłaszany automatycznie');
@@ -272,4 +272,85 @@ test('przebijanie obowiązuje zawsze – także gdy lewę bierze partner (do kol
   applyAction(h, 2, { type: 'play', card: '9H' });
   // gracz 3 jest partnerem gracza 1, który wygrywa lewę – i tak musi przebić asem
   assert.deepEqual(legalCards(h, 3), ['AH']);
+});
+
+// „Meldunek na kimś”: y1 zagrywa damę, następny (x2) dokłada króla tego koloru i melduje.
+const ON_HANDS = [
+  ['AS', 'TS', 'KS', 'QS', 'JS', '9S'],
+  ['QH', 'AH', 'TH', 'JH', '9H', 'AD'],
+  ['KH', 'AC', 'TC', 'KC', 'QC', 'JC'],
+  ['TD', 'KD', 'QD', 'JD', '9D', '9C'],
+];
+
+test('meldunek na kimś: król na damę poprzedniego gracza melduje i zmienia atut', () => {
+  const h = playingState(ON_HANDS, { settings: { meldOnFirstTrick: true } });
+  applyAction(h, 0, { type: 'play', card: 'AS' });
+  applyAction(h, 1, { type: 'play', card: 'QH' }); // brak pika – „ucieka” damą
+  assert.equal(meldOnSeat(h, 2, 'KH'), 1);
+  assert.deepEqual(meldableCards(h, 2), ['KH']);
+  const v = viewFor(h, 2);
+  assert.deepEqual(v.meldable, ['KH']);
+  applyAction(h, 2, { type: 'play', card: 'KH' });
+  assert.deepEqual(h.melds[0], { seat: 2, team: 0, suit: 'H', value: 100, trick: 1, on: 1 });
+  assert.equal(h.trump, 'H');
+  applyAction(h, 3, { type: 'play', card: '9C' });
+  assert.equal(h.tricks[0].winner, 2, 'król – teraz atut – bierze lewę');
+});
+
+test('meldunek na kimś: tylko na damę gracza tuż przed, tylko gdy król jest dozwolony, nie w 1. lewie domyślnie', () => {
+  // domyślnie nie w pierwszej lewie
+  let h = playingState(ON_HANDS);
+  applyAction(h, 0, { type: 'play', card: 'AS' });
+  applyAction(h, 1, { type: 'play', card: 'QH' });
+  assert.equal(meldOnSeat(h, 2, 'KH'), -1);
+  // wyłączone ustawienie
+  h = playingState(ON_HANDS, { settings: { meldOnFirstTrick: true, meldOnPlayed: false } });
+  applyAction(h, 0, { type: 'play', card: 'AS' });
+  applyAction(h, 1, { type: 'play', card: 'QH' });
+  applyAction(h, 2, { type: 'play', card: 'KH' });
+  assert.equal(h.melds.length, 0);
+  assert.equal(h.trump, null);
+  // król niedozwolony (trzeba dołożyć do koloru) → brak meldunku
+  const hands2 = [
+    ['AH', 'TS', 'KS', 'QS', 'JS', '9S'],
+    ['QH', 'AS', 'TH', 'JH', '9H', 'AD'],
+    ['KH', 'AC', 'TC', 'KC', 'QC', 'JC'],
+    ['TD', 'KD', 'QD', 'JD', '9D', '9C'],
+  ];
+  h = playingState(hands2, { settings: { meldOnFirstTrick: true } });
+  applyAction(h, 0, { type: 'play', card: 'TS' });
+  applyAction(h, 1, { type: 'play', card: 'AS' });
+  assert.equal(meldOnSeat(h, 2, 'KH'), -1, 'poprzedni nie zagrał damy');
+  // dama zagrana nie bezpośrednio przed → brak meldunku
+  const hands3 = [
+    ['AS', 'TS', 'KS', 'QS', 'JS', '9S'],
+    ['QH', 'AH', 'TH', 'JH', '9H', 'AD'],
+    ['9C', 'AC', 'TC', 'KC', 'QC', 'JC'],
+    ['TD', 'KD', 'QD', 'JD', 'KH', '9D'],
+  ];
+  h = playingState(hands3, { settings: { meldOnFirstTrick: true } });
+  applyAction(h, 0, { type: 'play', card: 'AS' });
+  applyAction(h, 1, { type: 'play', card: 'QH' });
+  applyAction(h, 2, { type: 'play', card: '9C' });
+  assert.equal(meldOnSeat(h, 3, 'KH'), -1);
+});
+
+test('musik: rozdanie wszystkich kart jedną akcją (wszystko albo nic) i widok „dostałeś”', () => {
+  const h = createHand({ dealerSeat: 3, settings: {}, deck: deckFor(HANDS, 3) });
+  while (h.phase === 'bidding') applyAction(h, h.turn, { type: 'pass' });
+  const b = h.contract.seat;
+  const others = [0, 1, 2, 3].filter((s) => s !== b);
+  const v = viewFor(h, b);
+  assert.equal(v.musikCards.length, 4, 'grający widzi, które karty są z musika');
+  assert.deepEqual(viewFor(h, others[0]).musikCards, []);
+  const [c1, c2, c3] = h.hands[b];
+  assert.throws(() => applyAction(h, b, { type: 'give-all', gives: [{ card: c1, to: others[0] }, { card: c2, to: others[1] }] }), /każdemu/);
+  assert.throws(() => applyAction(h, b, { type: 'give-all', gives: [{ card: c1, to: others[0] }, { card: c1, to: others[1] }, { card: c3, to: others[2] }] }), /jedną, inną/);
+  assert.throws(() => applyAction(h, b, { type: 'give-all', gives: [{ card: c1, to: others[0] }, { card: c2, to: others[0] }, { card: c3, to: others[2] }] }), /jedną, inną/);
+  assert.equal(h.hands[b].length, 9, 'nieudana próba niczego nie zmienia');
+  applyAction(h, b, { type: 'give-all', gives: [{ card: c1, to: others[0] }, { card: c2, to: others[1] }, { card: c3, to: others[2] }] });
+  assert.equal(h.phase, 'playing');
+  assert.deepEqual(h.hands.map((x) => x.length), [6, 6, 6, 6]);
+  assert.deepEqual(viewFor(h, others[1]).received, { card: c2, from: b });
+  assert.equal(viewFor(h, b).received, null);
 });

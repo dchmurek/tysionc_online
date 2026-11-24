@@ -4,7 +4,7 @@ import { state, nick, matchById, refreshMatch, subscribe, post, get, loadData } 
 import { subscribeRoom, unsubscribeRoom, onWs, act as wsAct, connect, wsState } from '../ws.js';
 import { computeMatch } from '/shared/scoring.js';
 import { SUIT_INFO, DEFAULT_SETTINGS } from '/shared/rules.js';
-import { icon, dot, colorOf, card, suitSym, teamDots } from '../ui.js';
+import { icon, dot, colorOf, card, cardName, suitSym, teamDots } from '../ui.js';
 
 const STATUS = { lobby: 'Poczekalnia', playing: 'Trwa rozdanie', between: 'Przerwa między rozdaniami', finished: 'Mecz zakończony', closed: 'Pokój zamknięty' };
 
@@ -33,6 +33,7 @@ export function lobby({ el, go }) {
             <label class="check"><input type="checkbox" name="mustBeat" ${s.mustBeat ? raw('checked') : ''}> Obowiązek przebicia (do koloru i atutem)</label>
             <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania atutu</label>
             <label class="check"><input type="checkbox" name="meldOnFirstTrick" ${s.meldOnFirstTrick ? raw('checked') : ''}> Meldunek dozwolony już w pierwszej lewie</label>
+            <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim)</label>
             <p class="hint">Licytację otwiera obowiązkowo gracz po lewej rozdającego (${s.minBid}). Licytuje się co ${s.bidStep}, bez ograniczeń wynikających z meldunków.</p>
           </details>
           <button class="btn gold wide" type="submit">Utwórz pokój</button>
@@ -55,7 +56,7 @@ export function lobby({ el, go }) {
         go('/room/' + encodeURIComponent(room.id));
       } else {
         const fd = new FormData(f);
-        const settings = { target: Number(fd.get('target')), rounding: fd.get('rounding'), mustBeat: !!fd.get('mustBeat'), mustTrump: !!fd.get('mustTrump'), meldOnFirstTrick: !!fd.get('meldOnFirstTrick') };
+        const settings = { target: Number(fd.get('target')), rounding: fd.get('rounding'), mustBeat: !!fd.get('mustBeat'), mustTrump: !!fd.get('mustTrump'), meldOnFirstTrick: !!fd.get('meldOnFirstTrick'), meldOnPlayed: !!fd.get('meldOnPlayed') };
         const { room } = await post('/api/rooms', { settings });
         go('/room/' + encodeURIComponent(room.id));
       }
@@ -82,6 +83,7 @@ export function room({ el, params, go, setCta, setBar }) {
   let busy = false;
   let flashTrick = null;
   let flashTimer = null;
+  let giveDraft = {}; // musik: komu którą kartę (seat → karta), zatwierdzane jednym przyciskiem
 
   connect();
   subscribeRoom(roomId);
@@ -92,7 +94,7 @@ export function room({ el, params, go, setCta, setBar }) {
     if (busy) return;
     busy = true;
     try {
-      await wsAct(roomId, view && ['bid', 'pass', 'play'].includes(action.type) ? { ...action, expectSeq: view.seq } : action);
+      await wsAct(roomId, view && ['bid', 'pass', 'play', 'give-all'].includes(action.type) ? { ...action, expectSeq: view.seq } : action);
       vibrate(8);
     } catch (e) {
       toast(e.message, { kind: 'bad' });
@@ -104,6 +106,13 @@ export function room({ el, params, go, setCta, setBar }) {
   const rel = (seat) => {
     const me = view.mySeat >= 0 ? view.mySeat : 0;
     return ['bottom', 'left', 'top', 'right'][(seat - me + 4) % 4];
+  };
+  const POS_TXT = { left: 'po lewej', top: 'naprzeciwko', right: 'po prawej' };
+  const isPartner = (seat) => view.mySeat >= 0 && seat !== view.mySeat && seat % 2 === view.mySeat % 2;
+  // Na kogo melduje król (poprzedni gracz zagrał damę tego koloru) – albo -1.
+  const meldOnOf = (h, c) => {
+    const last = h.trick && h.trick.cards.length ? h.trick.cards[h.trick.cards.length - 1] : null;
+    return last && c[0] === 'K' && last.card === 'Q' + c[1] && h.meldable.includes(c) ? last.seat : -1;
   };
 
   function draw() {
@@ -164,9 +173,9 @@ export function room({ el, params, go, setCta, setBar }) {
     return html`<div class="seat-box ${pos} team-${seat % 2 ? 'b' : 'a'} ${turn ? 'turn' : ''} ${u === state.me.id ? 'me' : ''}">
       <div class="sb-name">${dot(u)}<b>${nick(u)}</b>${h && h.dealerSeat === seat ? html`<span class="chipd" title="rozdaje">R</span>` : ''}${online.includes(u) ? '' : html`<span class="badge warn" title="rozłączony">offline</span>`}</div>
       <div class="sb-meta">${h ? html`${pos !== 'bottom' ? html`<span class="backs">${Array.from({ length: h.handCounts[seat] }, () => card(null, { back: true, small: true }))}</span>` : ''}
-        <span class="muted small">lewy: ${h.tricksWon[seat]}</span>` : ''}
+        ${pos !== 'bottom' ? html`<span class="cnt" title="kart w ręce">${h.handCounts[seat]} kart</span>` : ''}<span class="muted small">lewy: ${h.tricksWon[seat]}</span>` : ''}
         ${bidH ? html`<span class="bubble ${bidH.type}">${bidH.type === 'pass' ? 'pas' : bidH.value}</span>` : ''}
-        ${melds.map((x) => html`<span class="meld-badge">${suitSym(x.suit)} ${x.value}</span>`)}</div>
+        ${melds.map((x) => html`<span class="meld-badge" title="${x.on != null ? 'meldunek na ' + nick(view.seats[x.on]) : 'meldunek'}">${suitSym(x.suit)} ${x.value}</span>`)}</div>
     </div>`;
   }
 
@@ -190,7 +199,7 @@ export function room({ el, params, go, setCta, setBar }) {
             <span class="gi">rozdanie ${view.handNo}</span>
           </div>
         </div>
-        <div class="felt-table" aria-label="Stół">
+        <div class="felt-table ${h && h.phase === 'giving' && myTurn ? 'compact' : ''}" aria-label="Stół">
           ${[0, 1, 2, 3].map((s) => seatBox(s, h))}
           <div class="trick ${showingLast ? 'last' : ''}">
             ${center.map((x) => html`<div class="tc ${rel(x.seat)}">${card(x.card)}</div>`)}
@@ -201,10 +210,28 @@ export function room({ el, params, go, setCta, setBar }) {
         </div>
         <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'giving' ? (myTurn ? 'Wziąłeś musik – rozdaj po jednej karcie' : `${nick(view.seats[h.turn])} bierze musik i rozdaje karty`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
         ${view.status === 'playing' && h ? drawControls(h, myTurn) : drawResult()}
-        ${me >= 0 && h ? html`<div class="hand" role="group" aria-label="Twoje karty" style="--n:${h.hand.length}">${h.hand.map((c) => card(c, { act: 'card', playable: myTurn && ((h.phase === 'playing' && h.legal.includes(c)) || h.phase === 'giving'), dim: myTurn && h.phase === 'playing' && !h.legal.includes(c), selected: selected === c, meld: h.meldable.includes(c) }))}</div>` : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
+        ${me >= 0 && h ? drawHand(h, myTurn) : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
         ${state.me.role === 'admin' && view.status === 'playing' ? html`<details class="glog"><summary>Opcje administratora</summary><button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie</button></details>` : ''}
       </div>`);
     setCta('');
+  }
+
+  function drawHand(h, myTurn) {
+    const giving = h.phase === 'giving' && myTurn;
+    const assigned = giving ? Object.values(giveDraft) : [];
+    const cards = h.hand.filter((c) => !assigned.includes(c));
+    const musik = h.musikCards || [];
+    const recv = h.received && h.tricksCount === 0 ? h.received : null;
+    return html`${recv ? html`<div class="recv-note">${nick(view.seats[recv.from])} dał Ci: ${card(recv.card, { small: true, span: true })} <b>${cardName(recv.card)}</b></div>` : ''}
+      <div class="hand" role="group" aria-label="Twoje karty" style="--n:${cards.length}">${cards.map((c) => card(c, {
+        act: 'card',
+        playable: myTurn && ((h.phase === 'playing' && h.legal.includes(c)) || giving),
+        dim: myTurn && h.phase === 'playing' && !h.legal.includes(c),
+        selected: selected === c,
+        meld: h.meldable.includes(c),
+        tag: giving && musik.includes(c) ? 'musik' : recv && recv.card === c ? 'nowa' : '',
+        tagCls: recv && recv.card === c ? 'new' : '',
+      }))}</div>`;
   }
 
   function drawControls(h, myTurn) {
@@ -220,21 +247,28 @@ export function room({ el, params, go, setCta, setBar }) {
       </div>`;
     }
     if (h.phase === 'giving') {
-      const left = [0, 1, 2, 3].filter((s) => s !== view.mySeat && !h.given[s]);
+      const order = { left: 0, top: 1, right: 2 };
+      const left = [0, 1, 2, 3].filter((s) => s !== view.mySeat && !h.given[s]).sort((a, b) => order[rel(a)] - order[rel(b)]);
+      const done = left.every((s) => giveDraft[s]);
       return html`<div class="controls giving">
-        <div class="muted small">Masz musik. Oddaj po jednej dowolnej karcie każdemu graczowi (${left.length} ${left.length === 1 ? 'została' : 'zostały'}).</div>
-        ${selected ? html`<div class="give-to">${left.map((s) => html`<button type="button" class="btn gold" data-act="give" data-to="${s}">Daj ${card(selected, { small: true })} → ${nick(view.seats[s])}</button>`)}</div>`
-          : html`<div class="muted small">Wybierz kartę z ręki.</div>`}
+        <div class="give-help">${selected ? html`Komu dać ${card(selected, { small: true, span: true })} <b>${cardName(selected)}</b>? Kliknij gracza.` : done ? 'Sprawdź i zatwierdź. Kliknij kartę gracza, żeby ją cofnąć.' : html`<b>1.</b> Wybierz kartę z ręki &nbsp; <b>2.</b> Kliknij gracza`}</div>
+        <div class="give-slots">${left.map((s) => html`<button type="button" class="gslot ${isPartner(s) ? 'partner' : 'opp'} ${selected ? 'target' : ''} ${giveDraft[s] ? 'filled' : ''}" data-act="slot" data-to="${s}">
+          <span class="gsl-who">${dot(view.seats[s])}<b>${nick(view.seats[s])}</b></span>
+          <span class="gsl-role">${isPartner(s) ? 'partner' : 'przeciwnik'} · ${POS_TXT[rel(s)]}</span>
+          <span class="gsl-card">${giveDraft[s] ? card(giveDraft[s], { span: true }) : html`<span class="gsl-empty">?</span>`}</span>
+        </button>`)}</div>
+        <button type="button" class="btn-gold wide" data-act="give-confirm" ${done ? '' : raw('disabled')}>${done ? 'Zatwierdź rozdanie kart' : `Przydziel jeszcze ${left.filter((s) => !giveDraft[s]).length}`}</button>
       </div>`;
     }
     if (selected && h.legal.includes(selected)) {
       const meld = h.meldable.includes(selected);
       const s = selected[1];
       return html`<div class="controls play">
-        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld} i zagraj` : 'Zagraj'} ${card(selected, { small: true })}</button>
+        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld}${meldOnOf(h, selected) >= 0 ? ` na ${nick(view.seats[meldOnOf(h, selected)])}` : ''} i zagraj` : 'Zagraj'} ${card(selected, { small: true, span: true })}</button>
       </div>`;
     }
-    return html`<div class="controls muted small">${h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
+    const onK = h.meldable.find((c) => meldOnOf(h, c) >= 0);
+    return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld}).` : h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
   }
 
   function drawResult() {
@@ -299,7 +333,24 @@ export function room({ el, params, go, setCta, setBar }) {
         break;
       }
       case 'play': { const c = selected; selected = null; send({ type: 'play', card: c }); break; }
-      case 'give': { const c = selected; selected = null; send({ type: 'give', card: c, to: Number(a.dataset.to) }); break; }
+      case 'slot': {
+        const to = Number(a.dataset.to);
+        if (selected) {
+          for (const k of Object.keys(giveDraft)) if (giveDraft[k] === selected) delete giveDraft[k];
+          giveDraft[to] = selected;
+          selected = null;
+        } else if (giveDraft[to]) {
+          selected = giveDraft[to];
+          delete giveDraft[to];
+        } else { toast('Najpierw wybierz kartę z ręki'); return; }
+        draw();
+        break;
+      }
+      case 'give-confirm': {
+        const gives = Object.entries(giveDraft).map(([to, c]) => ({ card: c, to: Number(to) }));
+        send({ type: 'give-all', gives });
+        break;
+      }
       default:
     }
   };
@@ -319,6 +370,13 @@ export function room({ el, params, go, setCta, setBar }) {
       if (view.matchId && !matchById(view.matchId)) loadData();
       if (prev && prev.hand && view.hand && view.hand.turn === view.mySeat && prev.hand.turn !== view.mySeat) vibrate([10, 40, 10]);
       if (selected && (!view.hand || !view.hand.hand.includes(selected))) selected = null;
+      if (!view.hand || view.hand.phase !== 'giving') giveDraft = {};
+      const ph = prev && prev.hand, nh = view.hand;
+      if (nh && nh.received && !(ph && ph.received)) toast(`${nick(view.seats[nh.received.from])} dał Ci: ${cardName(nh.received.card)}`);
+      if (nh && ph && nh.melds.length > ph.melds.length) {
+        const md = nh.melds[nh.melds.length - 1];
+        toast(`${nick(view.seats[md.seat])} melduje ${SUIT_INFO[md.suit].symbol} ${md.value}${md.on != null ? ` na ${nick(view.seats[md.on])}` : ''}`);
+      }
       // Ukończona lewa zostaje chwilę na stole, żeby każdy zobaczył ostatnią kartę – potem znika.
       if (view.hand && prev && prev.hand && view.hand.tricksCount > prev.hand.tricksCount) {
         flashTrick = view.hand.tricksCount;

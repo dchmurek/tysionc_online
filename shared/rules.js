@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   mustBeat: true,          // dokładając do koloru trzeba przebić, jeśli się da
   mustTrump: true,         // brak koloru → trzeba dać atut, jeśli się ma
   meldOnFirstTrick: false, // meldunek dopiero od drugiej lewy (po wzięciu lewy)
+  meldOnPlayed: true,      // „meldunek na kimś”: król dołożony na damę tego samego koloru zagraną tuż przed nim
 });
 
 const SETTING_RULES = {
@@ -59,6 +60,7 @@ const SETTING_RULES = {
   mustBeat: (v) => typeof v === 'boolean',
   mustTrump: (v) => typeof v === 'boolean',
   meldOnFirstTrick: (v) => typeof v === 'boolean',
+  meldOnPlayed: (v) => typeof v === 'boolean',
 };
 
 // Zwraca pełne, zweryfikowane ustawienia albo rzuca błąd z opisem.

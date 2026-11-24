@@ -129,7 +129,7 @@ export class Rooms {
         if (typeof msg.actionId !== 'string' || msg.actionId.length > 64) throw new AppError(400, 'Zły identyfikator akcji');
         if (room.recentActions.includes(msg.actionId)) return { duplicate: true };
       }
-      if (msg.expectSeq != null && msg.expectSeq !== room.seq && ['bid', 'pass', 'play', 'give'].includes(msg.type)) {
+      if (msg.expectSeq != null && msg.expectSeq !== room.seq && ['bid', 'pass', 'play', 'give', 'give-all'].includes(msg.type)) {
         throw new AppError(409, 'Stan gry się zmienił – odświeżam', 'stale');
       }
       try {
@@ -194,16 +194,20 @@ export class Rooms {
       case 'bid':
       case 'pass':
       case 'give':
+      case 'give-all':
       case 'play': {
         if (room.status !== 'playing' || !room.hand) throw new AppError(400, 'Rozdanie nie trwa');
         if (seat < 0) throw new AppError(403, 'Nie siedzisz przy stole');
         const action = msg.type === 'play' ? { type: 'play', card: msg.card }
           : msg.type === 'bid' ? { type: 'bid', value: msg.value }
-            : msg.type === 'give' ? { type: 'give', card: msg.card, to: msg.to } : { type: 'pass' };
+            : msg.type === 'give' ? { type: 'give', card: msg.card, to: msg.to }
+              : msg.type === 'give-all' ? { type: 'give-all', gives: Array.isArray(msg.gives) ? msg.gives.slice(0, 3).map((g) => ({ card: g && g.card, to: g && g.to })) : null }
+                : { type: 'pass' };
         const meldsBefore = room.hand.melds.length;
         applyAction(room.hand, seat, action);
         // Dziennik widzą wszyscy – karta oddana z musika jest tajna (widzi ją tylko odbiorca).
-        const entry = action.type === 'give' ? { type: 'give', to: action.to } : { ...action };
+        const entry = action.type === 'give' ? { type: 'give', to: action.to }
+          : action.type === 'give-all' ? { type: 'give-all', to: action.gives.map((g) => g.to) } : { ...action };
         if (room.hand.melds.length > meldsBefore) entry.meld = room.hand.melds.at(-1).suit;
         room.log = [...room.log, { at: now(), seat, ...entry }].slice(-60);
         if (room.hand.phase === 'finished') await this.#finishHand(room);

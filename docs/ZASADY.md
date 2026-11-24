@@ -7,6 +7,8 @@
 - **Musik**: każdy dostaje po 5 kart, 4 karty leżą zakryte na środku. Zwycięzca licytacji zbiera musik i oddaje po jednej **dowolnej** karcie (nie tylko z musika) każdemu z pozostałych graczy – potem każdy ma 6 kart. Oddaną kartę widzi tylko jej odbiorca.
 - Meldunki: kier 100, karo 80, **pik 60, trefl 40**; wymagają króla i damy tego samego koloru; meldunek ustala atut; liczone drużynowo.
 - Online meldunek zgłasza się **automatycznie**: kto wychodzi królem lub damą z pary (gdy wolno meldować), melduje od razu – nie da się przypadkiem zagrać bez meldunku.
+- **Meldunek na kimś**: gdy gracz zagra damę, a następny gracz dołoży do niej króla tego samego koloru, ten drugi melduje (wartość koloru, liczona jego drużynie) i kolor staje się atutem od razu – także w bieżącej lewie. Król musi być dozwolony zwykłymi zasadami (kolor/przebicie/atut); dama musi być zagrana bezpośrednio przed królem. Ten sam limit co przy zwykłym meldunku: domyślnie od drugiej lewy.
+- Musik online: grający najpierw **przydziela** karty (karta → gracz, z oznaczeniem partner/przeciwnik), może je zmieniać, a potem **zatwierdza wszystkie trzy jednym przyciskiem**. Karty z musika są w ręce oznaczone „musik”, a odbiorca widzi, jaką kartę i od kogo dostał.
 - Licytacja od 100, przebijanie co najmniej o 10. **Brak ograniczeń wynikających z posiadanych meldunków.**
 - Ugrany kontrakt → drużyna dostaje **faktycznie zdobyte punkty** (karty + meldunki drużyny), zaokrąglone do 10. Kontrakt sprawdzany **po zaokrągleniu** (grał 160, ma 158 → 160 → ugrany).
 - Nieugrany kontrakt → **minus wartość kontraktu**.
@@ -28,6 +30,7 @@
 | `mustBeat` | tak/nie | tak | obowiązek przebicia: do koloru wyższą kartą, a bez koloru – atutem i nadbicie atutu |
 | `mustTrump` | tak/nie | tak | brak koloru → obowiązek dania atutu |
 | `meldOnFirstTrick` | tak/nie | nie | meldować można wychodząc, od drugiej lewy (po wzięciu lewy) |
+| `meldOnPlayed` | tak/nie | tak | **ustalenie właściciela**: meldunek na kimś – król dołożony na damę zagraną tuż przed nim |
 
 ## Rozstrzygnięcia wariantowe w grze online (do potwierdzenia)
 

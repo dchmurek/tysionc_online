@@ -972,3 +972,75 @@ body.in-game .cta-wrap { bottom: var(--safe-b); }
 .hand { --n: 6; gap: 4px; }
 .hand .pcard { --w: min(clamp(46px, 13.2vw, 74px), calc((100vw - 36px) / var(--n) - 4px)); }
 @media (min-width: 900px) { .hand .pcard { --w: min(78px, calc(900px / var(--n) - 8px)); } }
+
+/* ---------- oznaczenia kart: z musika / nowa ---------- */
+.pcard .ctag { position: absolute; left: 4%; bottom: 4%; font: 800 calc(var(--w) * .14) / 1 var(--sans); padding: 2px 4px; border-radius: 4px; background: var(--gold); color: var(--gold-ink); text-transform: uppercase; letter-spacing: .02em; }
+.pcard .ctag.new { background: #2f9e62; color: #fff; }
+.pcard.sm .ctag { display: none; }
+.cnt { display: none; font-size: .78rem; color: var(--ink-2); }
+.recv-note { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; font-size: .9rem; padding: 6px 10px; border-radius: 10px; background: rgba(47,158,98,.14); color: var(--ink); }
+
+/* ---------- rozdawanie kart z musika: przydział, potem jedno zatwierdzenie ---------- */
+.give-help { font-size: .95rem; color: var(--ink); display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; min-height: 34px; }
+.give-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gslot { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 10px; border-radius: 14px; background: var(--surface); border: 2px solid var(--line-2); color: var(--ink); font: inherit; cursor: pointer; min-width: 0; transition: border-color .15s, box-shadow .15s, background .15s; }
+.gslot.partner { border-top-color: var(--good); }
+.gslot.opp { border-top-color: var(--bad, #d9534f); }
+.gslot.target { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); background: var(--surface-2); }
+.gslot.filled:not(.target) { background: var(--surface-2); }
+.gsl-who { display: flex; align-items: center; gap: 5px; max-width: 100%; font-size: .95rem; }
+.gsl-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsl-role { font-size: .72rem; color: var(--muted); }
+.gslot.partner .gsl-role { color: var(--good); }
+.gsl-card { margin-top: 2px; }
+.gsl-card .pcard { --w: 50px; pointer-events: none; }
+.gsl-empty { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 71px; border-radius: 6px; border: 2px dashed var(--line-2); color: var(--muted); font-weight: 800; font-size: 1.3rem; }
+.controls.giving .btn-gold { min-height: 52px; }
+.controls.giving .btn-gold:disabled { opacity: .55; }
+
+/* ---------- czytelniejsze karty ---------- */
+.pcard .cr { font-size: calc(var(--w) * .34); left: 7%; top: 4%; letter-spacing: -.02em; }
+.pcard .cs { font-size: calc(var(--w) * .27); top: calc(5% + var(--w) * .33); left: 7%; }
+
+/* ---------- telefon pionowo: większe karty, gracze w górnym rzędzie, lewa na środku ---------- */
+@media (max-width: 600px) {
+  body.in-game #app { padding-left: 10px; padding-right: 10px; }
+  .game { gap: 6px; }
+  .gscore { padding: 6px 10px; }
+  .gs-n { font-size: .82rem; }
+  .gi { font-size: .85rem; padding: 4px 10px; }
+  .felt-table { height: 318px; min-height: 318px; border-radius: 22px; }
+  .seat-box { padding: 5px 6px; gap: 2px; background: rgba(0,0,0,.34); }
+  .seat-box.top { top: 8px; max-width: 34%; }
+  .seat-box.left { left: 6px; top: 8px; transform: none; max-width: 31%; }
+  .seat-box.right { right: 6px; top: 8px; transform: none; max-width: 31%; }
+  .seat-box.bottom { left: 6px; bottom: 8px; transform: none; max-width: 31%; }
+  .sb-name { font-size: .95rem; }
+  .backs { display: none; }
+  .cnt { display: inline; }
+  .sb-meta { gap: 2px 6px; }
+  .bubble { font-size: .85rem; }
+  .trick { --tw: clamp(50px, 15.5vw, 68px); top: calc(50% + 26px); width: calc(var(--tw) * 3.05); }
+  .trick-note { bottom: auto; top: 50%; transform: translate(-50%, -50%); z-index: 2; font-size: .85rem; background: rgba(0,0,0,.6); color: var(--ink); }
+  .musik { top: 50%; }
+  .turn-line { font-size: 1.08rem; }
+  .controls.muted { font-size: .9rem; }
+  .bid-opts .chip { min-width: 60px; min-height: 46px; font-size: 1rem; }
+  /* ręka: duże karty nachodzą na siebie, róg z figurą zawsze widoczny */
+  .hand { gap: 0; padding: 16px 0 6px; --avail: calc(100vw - 24px); }
+  .hand .pcard { --w: clamp(56px, 18vw, 80px); }
+  .hand .pcard + .pcard { margin-left: min(5px, calc((var(--avail) - var(--n) * var(--w)) / (var(--n) - 1))); }
+  .pcard.sel { transform: translateY(-16px); }
+}
+@media (max-width: 360px) {
+  .felt-table { height: 296px; min-height: 296px; }
+  .sb-name { font-size: .85rem; }
+  .gsl-who { font-size: .85rem; }
+  .gsl-card .pcard { --w: 44px; }
+  .gsl-empty { width: 44px; height: 62px; }
+}
+/* rozdawanie musika: stół zwinięty, panel przydziału i ręka bez przewijania */
+.felt-table.compact { height: 112px !important; min-height: 112px !important; }
+.felt-table.compact .trick { display: none; }
+.felt-table.compact .seat-box.bottom { display: none; }
+span.pcard { display: inline-block; }

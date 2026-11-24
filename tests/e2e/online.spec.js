@@ -69,8 +69,14 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
         } else if (await p.locator('.controls.giving').count()) {
           // musik: wybierz kartę i oddaj ją kolejnemu graczowi
           if (!giveShot) { giveShot = true; await p.screenshot({ path: `test-results/screens/${testInfo.project.name}-31b-musik.png` }); }
-          await p.locator('.hand .pcard').first().click({ timeout: 1500 });
-          await p.locator('[data-act=give]').first().click({ timeout: 1500 });
+          // przydział: karta → gracz (×3), potem jedno zatwierdzenie
+          for (let k = 0; k < 3; k++) {
+            await p.locator('.hand .pcard').first().click({ timeout: 1500 });
+            await p.locator('.gslot:not(.filled)').first().click({ timeout: 1500 });
+          }
+          await expect(p.locator('.gslot.filled')).toHaveCount(3);
+          await p.screenshot({ path: `test-results/screens/${testInfo.project.name}-31c-musik-ready.png` });
+          await p.locator('[data-act=give-confirm]').click({ timeout: 1500 });
         } else {
           const playable = p.locator('.hand .pcard.playable').first();
           await playable.click({ timeout: 1500 });

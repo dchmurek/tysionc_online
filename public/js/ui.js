@@ -48,15 +48,18 @@ export const teamDots = (team) => html`${team.map((id) => dot(id))}`;
 
 export const suitSym = (s) => html`<span class="suit ${SUIT_INFO[s].red ? 'red' : ''}" title="${SUIT_INFO[s].name}">${SUIT_INFO[s].symbol}︎</span>`;
 
-// Karta do gry (SVG-free, czysty CSS). opts: { playable, selected, small, back }
+// Karta do gry (SVG-free, czysty CSS). opts: { playable, selected, small, back, tag, tagCls }
+export const cardName = (c) => `${RANK_INFO[c[0]].name} ${SUIT_INFO[c[1]].name}`;
 export function card(c, opts = {}) {
   if (opts.back) return html`<span class="pcard back ${opts.small ? 'sm' : ''}" aria-hidden="true"></span>`;
   const r = c[0], s = c[1];
   const info = SUIT_INFO[s];
   const label = `${RANK_INFO[r].name} ${info.name}`;
+  // opts.span: karta jako zwykły element (np. wewnątrz innego przycisku – przycisk w przycisku łamie układ)
+  if (opts.span) return html`<span class="pcard ${info.red ? 'red' : ''} ${opts.small ? 'sm' : ''}" role="img" aria-label="${label}"><span class="cr">${RANK_INFO[r].label}</span><span class="cs">${info.symbol}︎</span><span class="cc">${info.symbol}︎</span></span>`;
   return html`<button type="button" class="pcard ${info.red ? 'red' : ''} ${opts.playable ? 'playable' : ''} ${opts.dim ? 'dim' : ''} ${opts.selected ? 'sel' : ''} ${opts.small ? 'sm' : ''} ${opts.meld ? 'meld' : ''}"
     ${opts.act ? raw(`data-act="${esc(opts.act)}" data-card="${esc(c)}"`) : raw('tabindex="-1"')} aria-label="${label}" ${opts.disabled ? raw('disabled') : ''}>
-    <span class="cr">${RANK_INFO[r].label}</span><span class="cs">${info.symbol}︎</span><span class="cc">${info.symbol}︎</span></button>`;
+    <span class="cr">${RANK_INFO[r].label}</span><span class="cs">${info.symbol}︎</span><span class="cc">${info.symbol}︎</span>${opts.tag ? html`<span class="ctag ${esc(opts.tagCls || '')}">${opts.tag}</span>` : ''}</button>`;
 }
 
 export const loading = () => html`<div class="loading"><span class="spinner"></span>Tasowanie…</div>`;

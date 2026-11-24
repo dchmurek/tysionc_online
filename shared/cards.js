@@ -54,6 +54,8 @@ export function createHand({ dealerSeat, settings, randomInt, deck }) {
     hands,
     musik,
     given: [false, false, false, false],
+    received: [null, null, null, null],
+    musikTaken: [],
     bidding: {
       highest: S.minBid,
       highestSeat: opener,
@@ -89,10 +91,12 @@ function finishBidding(state) {
   // Zwycięzca licytacji zbiera musik.
   state.hands[b.highestSeat] = state.hands[b.highestSeat].concat(state.musik);
   state.log.push({ type: 'musik', seat: b.highestSeat, cards: state.musik.slice() });
+  state.musikTaken = state.musik.slice();
   state.musik = [];
   state.phase = 'giving';
   state.given = [false, false, false, false];
   state.given[b.highestSeat] = true;
+  state.received = [null, null, null, null];
   state.turn = b.highestSeat;
 }
 
@@ -140,17 +144,48 @@ export function legalCards(state, seat) {
   return hand.slice();
 }
 
+function meldTimingOk(state) {
+  return state.settings.meldOnFirstTrick || state.tricks.length > 0;
+}
+
+// Meldunek wychodząc: król lub dama, gdy ma się w ręce parę.
 export function canMeld(state, seat, card) {
   if (state.phase !== 'playing' || state.turn !== seat || state.trick.cards.length) return false;
-  if (!state.settings.meldOnFirstTrick && state.tricks.length === 0) return false;
+  if (!meldTimingOk(state)) return false;
   const r = cardRank(card), s = cardSuit(card);
   if (r !== 'K' && r !== 'Q') return false;
   const partner = (r === 'K' ? 'Q' : 'K') + s;
   return state.hands[seat].includes(card) && state.hands[seat].includes(partner);
 }
 
+// „Meldunek na kimś”: poprzedni gracz w lewie zagrał damę, a ja dokładam do niej króla tego samego koloru.
+// Karta musi być dozwolona (obowiązek koloru/przebicia/atutu działa normalnie). Zwraca miejsce gracza z damą albo -1.
+export function meldOnSeat(state, seat, card) {
+  if (!state.settings.meldOnPlayed) return -1;
+  if (state.phase !== 'playing' || state.turn !== seat || !state.trick.cards.length) return -1;
+  if (!meldTimingOk(state)) return -1;
+  if (cardRank(card) !== 'K' || !state.hands[seat].includes(card)) return -1;
+  const prev = state.trick.cards[state.trick.cards.length - 1];
+  if (prev.card !== 'Q' + cardSuit(card)) return -1;
+  if (!legalCards(state, seat).includes(card)) return -1;
+  return prev.seat;
+}
+
 export function meldableCards(state, seat) {
-  return state.hands[seat].filter((c) => canMeld(state, seat, c));
+  return state.hands[seat].filter((c) => canMeld(state, seat, c) || meldOnSeat(state, seat, c) >= 0);
+}
+
+// Grający rozdaje karty z musika: zapis jednej akcji { type: 'give-all', gives: [{ card, to }, …] }
+// – wszystko albo nic, żeby nie dało się pomylić w połowie.
+function applyGive(state, seat, card, to) {
+  if (!Number.isInteger(to) || to < 0 || to >= PLAYERS || to === seat) throw new RuleError('Wybierz innego gracza');
+  if (state.given[to]) throw new RuleError('Ten gracz dostał już kartę');
+  if (!isCard(card) || !state.hands[seat].includes(card)) throw new RuleError('Nie masz tej karty');
+  state.hands[seat] = state.hands[seat].filter((c) => c !== card);
+  state.hands[to].push(card);
+  state.given[to] = true;
+  (state.received ||= [null, null, null, null])[to] = { card, from: seat };
+  state.log.push({ type: 'give', seat, to, card });
 }
 
 // Wykonuje akcję gracza. Mutuje stan, rzuca RuleError przy nielegalnym ruchu.
@@ -196,15 +231,22 @@ export function applyAction(state, seat, action) {
 
   if (state.phase === 'giving') {
     // Grający oddaje po jednej karcie każdemu z pozostałych (dowolną ze swoich kart).
-    if (action.type !== 'give') throw new RuleError('Najpierw rozdaj karty z musika – po jednej każdemu graczowi');
-    const { card, to } = action;
-    if (!Number.isInteger(to) || to < 0 || to >= PLAYERS || to === seat) throw new RuleError('Wybierz innego gracza');
-    if (state.given[to]) throw new RuleError('Ten gracz dostał już kartę');
-    if (!isCard(card) || !state.hands[seat].includes(card)) throw new RuleError('Nie masz tej karty');
-    state.hands[seat] = state.hands[seat].filter((c) => c !== card);
-    state.hands[to].push(card);
-    state.given[to] = true;
-    state.log.push({ type: 'give', seat, to, card });
+    if (action.type === 'give') {
+      applyGive(state, seat, action.card, action.to);
+    } else if (action.type === 'give-all') {
+      const gives = action.gives;
+      const missing = [0, 1, 2, 3].filter((s) => !state.given[s]);
+      if (!Array.isArray(gives) || gives.length !== missing.length) throw new RuleError('Przydziel po jednej karcie każdemu graczowi');
+      const tos = new Set(gives.map((g) => g && g.to));
+      const cards = new Set(gives.map((g) => g && g.card));
+      if (tos.size !== gives.length || cards.size !== gives.length || missing.some((s) => !tos.has(s))) throw new RuleError('Każdy gracz dostaje dokładnie jedną, inną kartę');
+      for (const g of gives) {
+        if (!isCard(g.card) || !state.hands[seat].includes(g.card)) throw new RuleError('Nie masz tej karty');
+      }
+      for (const g of gives) applyGive(state, seat, g.card, g.to);
+    } else {
+      throw new RuleError('Najpierw rozdaj karty z musika – po jednej każdemu graczowi');
+    }
     if (state.given.every(Boolean)) {
       state.phase = 'playing';
       state.trick = { leader: seat, cards: [] };
@@ -221,9 +263,12 @@ export function applyAction(state, seat, action) {
   if (!legal.includes(card)) throw new RuleError('Tej karty nie można teraz zagrać (obowiązek koloru, przebicia lub atutu)');
   let meld = null;
   // Meldunek zgłaszany automatycznie: kto wychodzi królem lub damą z pary (gdy meldować wolno), melduje od razu.
-  if (canMeld(state, seat, card)) {
+  // Tak samo „na kimś”: król dołożony na damę tego koloru zagraną przez poprzedniego gracza.
+  const onSeat = meldOnSeat(state, seat, card);
+  if (canMeld(state, seat, card) || onSeat >= 0) {
     const suit = cardSuit(card);
     meld = { seat, team: teamOfSeat(seat), suit, value: MELD_VALUES[suit], trick: state.tricks.length + 1 };
+    if (onSeat >= 0) meld.on = onSeat;
     state.melds.push(meld);
     state.trump = suit;
   }
@@ -298,6 +343,10 @@ export function viewFor(state, seat) {
     legal: seat >= 0 ? legalCards(state, seat) : [],
     meldable: seat >= 0 ? meldableCards(state, seat) : [],
     settings: { minBid: state.settings.minBid, bidStep: state.settings.bidStep, maxBid: state.settings.maxBid },
+    // Tylko dla siebie: które karty w ręce pochodzą z musika (grający) i jaką kartę dostałem (pozostali).
+    musikCards: seat >= 0 && state.contract && state.contract.seat === seat && state.musikTaken
+      ? state.musikTaken.filter((c) => state.hands[seat].includes(c)) : [],
+    received: seat >= 0 && state.received && state.received[seat] ? { ...state.received[seat] } : null,
   };
   if (state.phase === 'finished') v.cardPoints = state.cardPoints.slice();
   return v;
