@@ -32,6 +32,8 @@ sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/migrate.js --sou
 # 5. Administrator
 # (Kamil, Daniel, Karol i Akuro są administratorami od migracji – potrzebne są tylko kody aktywacyjne)
 for n in Kamil Daniel Karol Akuro; do sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/admin.js activation $n; done
+# albo od razu tymczasowe hasło (gracz zmienia je w Profilu):
+# sudo -u tysiac env DATA_DIR=/var/lib/tysiac node server/scripts/admin.js password Karol <hasło-min-10-znaków>
 
 # 6. Usługa i HTTPS
 sudo cp deploy/tysiac.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tysiac
@@ -40,6 +42,16 @@ sudo ln -s /etc/nginx/sites-available/tysiac /etc/nginx/sites-enabled/ && sudo c
 ```
 
 Zamiast nginx można użyć Caddy (`deploy/Caddyfile`) – sam pobiera certyfikat.
+
+### Dzień przełączenia ze starej strony PHP
+
+1. Uprzedź graczy, że na starej stronie nic już nie wpisujecie.
+2. Pobierz z hostingu **najświeższy** `data/db.json` (FTP) – migracja sama przekształca go do nowego formatu, więc zmiany w bazie od ostatniej kopii nie są problemem.
+3. Kroki 4–5 powyżej (najpierw `--dry-run`: musi pokazać „wszystkie … mecze identyczne co do punktu”).
+4. Jeśli ktoś jednak dopisał coś w PHP po migracji – pobierz db.json jeszcze raz i uruchom migrację ponownie (przy zatrzymanym serwerze): dopisze nowe mecze i rozdania, niczego nie zdubluje.
+5. Starą stronę PHP wyłącz albo zostaw tylko do podglądu.
+
+Lokalnego katalogu `storage/` z komputera dewelopera **nie** przenosimy (są w nim konta testowe i skróty haseł).
 
 ### WebSocket
 Ścieżka `/ws` musi być przekazywana z nagłówkami `Upgrade`/`Connection` (gotowe w `deploy/nginx.conf`). Serwer sprawdza nagłówek `Origin` – ustaw `ALLOWED_ORIGINS` na adres strony, jeśli proxy zmienia `Host`.
