@@ -31,7 +31,7 @@ export function newMatch({ el, go, setCta }) {
         <button type="button" class="btn sm" data-act="swap">${icon('swap')}Zamień partnerów w drużynie B</button>
         <button type="button" class="btn sm" data-act="add-profile">${icon('plus')}Gracz bez konta</button>
       </div>
-      <label class="field"><span>Pierwszy rozdaje</span><select data-act="dealer">${[0, 1, 2, 3].map((i) => html`<option value="${i}" ${ng.firstDealerSeat === i ? raw('selected') : ''}>Miejsce ${i + 1}${ng.seats[i] ? ' – ' + nick(ng.seats[i]) : ''}</option>`)}</select></label>
+      <label class="field"><span>Pierwszy tasuje</span><select data-act="dealer">${[0, 1, 2, 3].map((i) => html`<option value="${i}" ${ng.firstDealerSeat === i ? raw('selected') : ''}>Miejsce ${i + 1}${ng.seats[i] ? ' – ' + nick(ng.seats[i]) : ''}</option>`)}</select></label>
       <details class="rules">
         <summary>Zasady meczu (zapisywane w meczu, nie zmieniają się w trakcie)</summary>
         <div class="form-grid">
@@ -104,6 +104,7 @@ export function table({ el, params, go, setCta, setBar }) {
     const lead = Math.max(...c.scores);
     const prev = shown[id] || c.scores;
     const dealer = c.nextDealer;
+    const nextDealer = m.seats[(c.nextDealerSeat + 1) % 4];
     const pend = pendingFor(id).length;
     setBar(html`<button class="icon-btn" data-act="menu" aria-label="Opcje meczu">${icon('more')}</button>`);
     const tiles = c.teams.map((team, t) => {
@@ -111,7 +112,6 @@ export function table({ el, params, go, setCta, setBar }) {
       const pills = [];
       if (c.winner === t) pills.push(html`<span class="pill win">${icon('crown')}wygrana</span>`);
       if (c.atCap[t] && c.winner === null) pills.push(html`<span class="pill barrel">${c.cap} · tylko licytacja</span>`);
-      if (!finished && team.includes(dealer)) pills.push(html`<span class="pill deal">rozdaje ${nick(dealer)}</span>`);
       const w = Math.max(0, Math.min(100, (sc / c.settings.target) * 100));
       const isLead = c.winner === null && sc === lead && sc > 0 && c.scores[1 - t] !== lead;
       return html`<div class="tile ${c.winner === t ? 'win' : ''} ${isLead ? 'lead' : ''}" style="--pc:${TEAM_COLOR[t]}">
@@ -128,7 +128,12 @@ export function table({ el, params, go, setCta, setBar }) {
       <section class="felt">
         <div class="felt-meta"><span>4 na krzyż · ${m.mode === 'online' ? 'online' : 'offline'}</span>${finished
           ? html`<span>${m.status === 'abandoned' ? 'przerwany' : `${c.rows.length} rozdań`}</span>`
-          : html`<span class="dealer">rozdanie ${c.rows.length + 1} · rozdaje <b>${nick(dealer)}</b></span>`}</div>
+          : html`<span class="dealer">rozdanie ${c.rows.length + 1}</span>`}</div>
+        ${finished ? '' : html`<div class="deal-turn" aria-live="polite">
+          <div class="dt-now">${dot(dealer)}<span><small>Tasuje teraz</small><b>${nick(dealer)}</b></span></div>
+          ${icon('chevronRight', 'dt-arrow')}
+          <div class="dt-next">${dot(nextDealer)}<span><small>Następny</small><b>${nick(nextDealer)}</b></span></div>
+        </div>`}
         <div class="scores n2">${tiles}</div>
       </section>
       ${live ? html`<a class="notice" href="#/room/${encodeURIComponent(live.id)}">${icon('wifi')} Ten mecz ma otwarty pokój online (kod ${live.code}) – przejdź do gry online</a>` : ''}
@@ -244,7 +249,7 @@ export function table({ el, params, go, setCta, setBar }) {
       <section class="sheet ${first ? '' : 'static'}" tabindex="-1" role="dialog" aria-modal="true" aria-label="${editing ? 'Poprawka rozdania' : 'Nowe rozdanie'}">
       <div class="sheet-grip"></div>
       <div class="sheet-head"><div><h2>${editing ? `Poprawka #${editIdx + 1}` : `Rozdanie ${m.rounds.length + 1}`}</h2>
-        <div class="sub">rozdaje ${nick(editing ? m.rounds[editIdx].dealer : computeMatch(m).nextDealer)}</div></div>
+        <div class="sub">tasuje ${nick(editing ? m.rounds[editIdx].dealer : computeMatch(m).nextDealer)}</div></div>
         <button class="icon-btn" data-act="close-sheet" aria-label="Zamknij">${icon('x')}</button></div>
       <div class="sheet-body">
         ${d.legacy ? html`<p class="notice warn small">To rozdanie pochodzi ze starej aplikacji. Zapis poprawki przeliczy je według obecnych zasad (faktycznie ugrane punkty).</p>` : ''}

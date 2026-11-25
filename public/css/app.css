@@ -178,6 +178,17 @@ main.wide { max-width: 1080px; }
 }
 .felt-meta .dealer { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .felt-meta .dealer b { color: var(--ink); font-weight: 600; }
+.deal-turn {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px; padding: 8px 12px; border-radius: 12px;
+  background: rgba(0, 0, 0, .18); border: 1px solid rgba(255, 255, 255, .08);
+}
+.deal-turn > div { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.deal-turn span { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.deal-turn small { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: rgba(244, 239, 226, .55); font-weight: 600; }
+.deal-turn b { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-turn .dt-next { opacity: .72; }
+.deal-turn .dt-arrow { flex: none; opacity: .45; }
 
 .scores { display: grid; gap: 10px; position: relative; z-index: 1; }
 .scores.n2 { grid-template-columns: 1fr 1fr; }
@@ -219,7 +230,6 @@ main.wide { max-width: 1080px; }
 }
 .pill.barrel { background: var(--gold); color: var(--gold-ink); }
 .pill.win { background: var(--gold); color: var(--gold-ink); }
-.pill.deal { background: transparent; border: 1px solid rgba(255, 255, 255, .16); }
 .tbar { height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .08); margin-top: 10px; overflow: hidden; position: relative; }
 .tbar i { position: absolute; inset: 0 auto 0 0; background: var(--pc); border-radius: 2px; transition: width .6s var(--ease); }
 .tbar .mark { position: absolute; top: -2px; bottom: -2px; width: 1px; background: rgba(201, 164, 92, .7); }
