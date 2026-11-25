@@ -13,7 +13,11 @@ function fxLayer() {
 }
 export function clearFx() { if (layer) layer.replaceChildren(); }
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-export const animationsOn = () => localStorage.getItem('tys2:anim') !== '0' && !reducedMotion();
+// Przycisk „Animacje” ma pierwszeństwo; bez wyboru – domyślnie włączone, chyba że telefon ma „ogranicz ruch”.
+export const animationsOn = () => {
+  const v = localStorage.getItem('tys2:anim');
+  return v === '1' ? true : v === '0' ? false : !reducedMotion();
+};
 
 function centerOf(el) {
   const r = el.getBoundingClientRect();

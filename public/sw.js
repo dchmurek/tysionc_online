@@ -1,6 +1,6 @@
 // Service Worker: cache WYŁĄCZNIE zasobów statycznych (powłoka aplikacji).
 // Dane z /api/ nigdy nie trafiają do cache Service Workera (prywatne dane innych użytkowników).
-const VERSION = 'tysiac-v2.3.1-anim';
+const VERSION = 'tysiac-v2.3.2-anim';
 const SHELL = [
   '/', '/index.html', '/css/app.css', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png',
   '/vendor/chart.umd.min.js', '/vendor/qrcode.js',

@@ -122,6 +122,9 @@ export function room({ el, params, go, setCta, setBar }) {
     return t == null ? 0 : Math.max(0, t - (performance.now() - deal.start));
   };
   const seatEl = (seat) => (seat === view.mySeat && el.querySelector('.hand')) || el.querySelector('.seat-box.' + rel(seat));
+  let bidsOpen = false;
+  let endFlash = false;
+  let endTimer = null;
   let giveDraft = {}; // musik: komu którą kartę (seat → karta), zatwierdzane jednym przyciskiem
 
   connect();
@@ -156,7 +159,15 @@ export function room({ el, params, go, setCta, setBar }) {
     return last && c[0] === 'K' && last.card === 'Q' + c[1] && h.meldable.includes(c) ? last.seat : -1;
   };
 
+  // Panel boczny leży poza widokiem stołu (position: fixed względem całego ekranu).
+  const panelHost = document.createElement('div');
+  document.body.appendChild(panelHost);
   function draw() {
+    const ph = view && view.status !== 'lobby' && view.hand;
+    mount(panelHost, bidsOpen && ph ? drawBids(view.hand) : '');
+    drawMain();
+  }
+  function drawMain() {
     if (!view) { mount(el, html`<div class="loading"><span class="spinner"></span>Łączenie ze stołem…</div>`); return; }
     setBar(html`<span class="conn ${wsState.connected ? 'on' : 'off'}" title="${wsState.connected ? 'połączono' : 'łączenie…'}">${icon('wifi')}</span><a class="icon-btn" href="#/" aria-label="Wyjdź do menu (gra trwa dalej)">${icon('home')}</a>`);
     if (view.status === 'lobby') return drawLobby();
@@ -232,8 +243,10 @@ export function room({ el, params, go, setCta, setBar }) {
     const myTurn = h && h.turn === me && h.phase !== 'finished';
     const contract = h && h.contract;
     const flash = h && h.trick && !h.trick.cards.length && h.lastTrick && flashTrick === h.tricksCount;
-    const center = h && h.trick && h.trick.cards.length ? h.trick.cards : (flash ? h.lastTrick.cards : []);
-    const showingLast = flash;
+    // Po ostatniej karcie rozdania ostatnia lewa zostaje chwilę na stole (żeby wszyscy ją zobaczyli).
+    const endTrick = !h && endFlash && view.lastHand && view.lastHand.tricks.length ? view.lastHand.tricks[view.lastHand.tricks.length - 1] : null;
+    const center = h && h.trick && h.trick.cards.length ? h.trick.cards : (flash ? h.lastTrick.cards : endTrick ? endTrick.cards : []);
+    const showingLast = flash || !!endTrick;
     const teamsTxt = sc ? sc.c.teams : [[view.seats[0], view.seats[2]], [view.seats[1], view.seats[3]]];
     mount(el, html`
       <div class="game">
@@ -243,13 +256,14 @@ export function room({ el, params, go, setCta, setBar }) {
             ${contract ? html`<span class="gi">kontrakt <b>${contract.value}</b> · ${nick(view.seats[contract.seat])}</span>` : h && h.phase === 'bidding' ? html`<span class="gi">licytacja: <b>${h.bidding.highest}</b> · ${nick(view.seats[h.bidding.highestSeat])}</span>` : ''}
             <span class="gi">tromf ${h && h.trump ? suitSym(h.trump) : html`<span class="muted">brak</span>`}</span>
             <span class="gi">rozdanie ${view.handNo}</span>
+            ${h ? html`<button type="button" class="gi gi-btn" data-act="bids" aria-expanded="${bidsOpen}">${icon('list')}licytacja (${h.bidding.history.length})</button>` : ''}
           </div>
         </div>
         <div class="felt-table ${h && h.phase === 'giving' && myTurn ? 'compact' : ''}" aria-label="Stół">
           ${[0, 1, 2, 3].map((s) => seatBox(s, h))}
           <div class="trick ${showingLast ? 'last' : ''}">
             ${center.map((x) => html`<div class="tc ${rel(x.seat)}">${card(x.card)}</div>`)}
-            ${showingLast ? html`<div class="trick-note">lewę bierze ${nick(view.seats[h.lastTrick.winner])} (+${h.lastTrick.points})</div>` : ''}
+            ${showingLast ? html`<div class="trick-note">${endTrick ? 'ostatnia lewa – ' : ''}lewę bierze ${nick(view.seats[(endTrick || h.lastTrick).winner])} (+${(endTrick || h.lastTrick).points})</div>` : ''}
             ${h && h.phase === 'bidding' ? html`<div class="musik ${deal ? 'dealing' : ''}" aria-label="Musik – 4 karty">${Array.from({ length: h.musikCount }, (_, k) => card(null, { back: true, delay: deal ? dealDelay('m', k) : 0 }))}</div>` : ''}
             ${h && !center.length ? html`<div class="trick-note">${h.phase === 'bidding' ? 'musik' : h.phase === 'giving' ? `${nick(view.seats[h.contract.seat])} rozdaje karty z musika` : myTurn ? 'wyjdź kartą' : ''}</div>` : ''}
           </div>
@@ -260,6 +274,16 @@ export function room({ el, params, go, setCta, setBar }) {
         ${state.me.role === 'admin' && view.status === 'playing' ? html`<details class="glog"><summary>Opcje administratora</summary><button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie</button></details>` : ''}
       </div>`);
     setCta('');
+  }
+
+  // Historia licytacji w wysuwanym panelu z boku – nie zabiera miejsca nad kartami.
+  function drawBids(h) {
+    const hist = h.bidding.history;
+    return html`<div class="side-backdrop" data-act="bids"></div><aside class="side-panel" aria-label="Historia licytacji">
+      <div class="sp-head"><b>Licytacja</b><button type="button" class="icon-btn sm" data-act="bids" aria-label="Zamknij">${icon('x')}</button></div>
+      <ol class="sp-list">${hist.map((x) => html`<li class="${x.type}">${teamDot(x.seat % 2)}<span class="sp-n">${nick(view.seats[x.seat])}</span><b>${x.type === 'pass' ? 'pas' : x.value}</b>${x.forced ? html`<small class="muted">obowiązkowe</small>` : ''}</li>`)}</ol>
+      ${h.contract ? html`<div class="sp-foot">Kontrakt: <b>${h.contract.value}</b> · ${nick(view.seats[h.contract.seat])}</div>` : html`<div class="sp-foot muted">Licytuje: ${nick(view.seats[h.turn])}</div>`}
+    </aside>`;
   }
 
   function drawHand(h, myTurn) {
@@ -285,7 +309,7 @@ export function room({ el, params, go, setCta, setBar }) {
   }
 
   function drawControls(h, myTurn) {
-    if (!myTurn) return html`<div class="controls muted small">${h.phase === 'bidding' ? html`Historia licytacji: ${h.bidding.history.map((x) => html`<span class="hb">${nick(view.seats[x.seat])} ${x.type === 'pass' ? 'pas' : x.value}${x.forced ? ' (obowiązkowe)' : ''}</span>`)}` : ''}</div>`;
+    if (!myTurn) return '';
     if (h.phase === 'bidding') {
       const next = h.bidding.highest + h.settings.bidStep;
       return html`<div class="controls bidding">
@@ -394,6 +418,7 @@ export function room({ el, params, go, setCta, setBar }) {
         if (!animationsOn()) { clearFx(); deal = null; }
         draw();
         break;
+      case 'bids': bidsOpen = !bidsOpen; draw(); break;
       case 'hide-cards':
         cardsHidden = !cardsHidden;
         localStorage.setItem('tys2:hideCards', cardsHidden ? '1' : '0');
@@ -480,6 +505,15 @@ export function room({ el, params, go, setCta, setBar }) {
         else if (nh.trick && ph.trick && nh.trick.cards.length > ph.trick.cards.length) played = nh.trick.cards[nh.trick.cards.length - 1];
         if (played) after.push(() => slideIn(el.querySelector(`.trick .tc.${rel(played.seat)} .pcard`), seatEl(played.seat)));
       }
+      // Koniec rozdania: ostatnia lewa zostaje chwilę na stole (ostatnia karta też wjeżdża od gracza).
+      if (prev && prev.status === 'playing' && view.status !== 'playing' && view.lastHand) {
+        endFlash = true;
+        clearTimeout(endTimer);
+        endTimer = setTimeout(() => { endFlash = false; draw(); }, 2500);
+        const lt = view.lastHand.tricks[view.lastHand.tricks.length - 1];
+        const lc = lt && lt.cards[lt.cards.length - 1];
+        if (anim && lc) after.push(() => slideIn(el.querySelector(`.trick .tc.${rel(lc.seat)} .pcard`), el.querySelector('.seat-box.' + rel(lc.seat))));
+      }
       // Ukończona lewa zostaje chwilę na stole, żeby każdy zobaczył ostatnią kartę – potem zjeżdża do zwycięzcy.
       if (view.hand && prev && prev.hand && view.hand.tricksCount > prev.hand.tricksCount) {
         flashTrick = view.hand.tricksCount;
@@ -495,7 +529,7 @@ export function room({ el, params, go, setCta, setBar }) {
         const lh = view.lastHand;
         const bt = lh.bidderTeam;
         const teamTxt = [view.seats[bt], view.seats[bt + 2]].map(nick).join(' & ');
-        after.push(() => {
+        after.push(() => setTimeout(() => {
           const felt = el.querySelector('.felt-table');
           centerBanner(felt, lh.made
             ? { kind: 'good', title: html`Ugrane ${lh.contract.value}!`, sub: html`${teamTxt} ${lh.deltas ? signed(lh.deltas[bt]) : ''}`, duration: 3000 }
@@ -504,7 +538,7 @@ export function room({ el, params, go, setCta, setBar }) {
             const wt = lh.winner;
             setTimeout(() => centerBanner(el.querySelector('.felt-table') || felt, { kind: 'win', title: html`${icon('crown')} Wygrywają!`, sub: [view.seats[wt], view.seats[wt + 2]].map(nick).join(' & '), duration: 3500 }), 3000);
           }
-        });
+        }, 1400));
       }
       draw();
       after.forEach((f) => f());
@@ -515,6 +549,7 @@ export function room({ el, params, go, setCta, setBar }) {
   el.addEventListener('click', onClick);
   const cta = document.getElementById('cta');
   cta.addEventListener('click', onClick);
+  panelHost.addEventListener('click', onClick);
   draw();
-  return () => { unWs(); unSub(); unsubscribeRoom(roomId); cta.removeEventListener('click', onClick); clearTimeout(flashTimer); clearFx(); };
+  return () => { unWs(); unSub(); unsubscribeRoom(roomId); cta.removeEventListener('click', onClick); panelHost.remove(); clearTimeout(endTimer); clearTimeout(flashTimer); clearFx(); };
 }

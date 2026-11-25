@@ -40,6 +40,7 @@ export async function createApp(config, { log = makeLogger(config.logLevel), ran
   const matches = new Matches(store, {
     accounts, audit,
     isLive: async (id) => (rooms ? rooms.isLive(id) : false),
+    hasRoom: async (id) => !!(rooms && rooms.roomForMatch(id)),
     onChange: (id) => realtime && realtime.matchChanged(id),
   });
   rooms = new Rooms(store, { matches, accounts, audit, randomInt, onUpdate: (id, room) => realtime && realtime.roomChanged(id, room) });

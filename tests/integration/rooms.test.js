@@ -63,3 +63,27 @@ test('musik: grający oddaje karty; oddana karta widoczna tylko dla odbiorcy (dz
   assert.equal(room.log.at(-1).type, 'give');
   assert.equal(room.log.at(-1).card, undefined);
 });
+
+test('nieudany zapis wyniku przy ostatniej karcie nie blokuje stołu – ruch się cofa i można go powtórzyć', async () => {
+  const { room, u } = await startedRoom();
+  const play = async (card) => svc.rooms.act(u[room.hand.turn], room.id, { type: 'play', card: card ?? room.hand.hands[room.hand.turn].find((c) => legal(c)) });
+  const { legalCards } = await import('../../shared/cards.js');
+  const legal = (c) => legalCards(room.hand, room.hand.turn).includes(c);
+  while (room.hand.phase === 'bidding') await svc.rooms.act(u[room.hand.turn], room.id, { type: 'pass' });
+  const b = room.hand.turn;
+  const gives = [0, 1, 2, 3].filter((s) => s !== b).map((to, i) => ({ card: room.hand.hands[b][i], to }));
+  await svc.rooms.act(u[b], room.id, { type: 'give-all', gives });
+  while (!(room.hand.tricks.length === 5 && room.hand.trick.cards.length === 3)) await play();
+  const last = room.hand.turn;
+  const card = room.hand.hands[last][0];
+  const orig = svc.matches.appendOnlineRound.bind(svc.matches);
+  svc.matches.appendOnlineRound = async () => { throw new Error('dysk pełny'); };
+  await assert.rejects(svc.rooms.act(u[last], room.id, { type: 'play', card }), /dysk pełny/);
+  assert.equal(room.status, 'playing');
+  assert.equal(room.hand.phase, 'playing', 'rozdanie nie utknęło jako „zakończone”');
+  assert.deepEqual(room.hand.hands[last], [card], 'karta wróciła do ręki');
+  svc.matches.appendOnlineRound = orig;
+  await svc.rooms.act(u[last], room.id, { type: 'play', card });
+  assert.equal(room.status === 'between' || room.status === 'finished', true);
+  assert.equal((await svc.matches.get(room.matchId)).rounds.length, 1);
+});

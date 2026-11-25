@@ -150,6 +150,15 @@ test('podczas rozdania online nie można dopisać wyniku offline do tego meczu',
   await assert.rejects(players[0].wsc.act(roomId, { type: 'detach' }), /Dokończ rozdanie/);
 });
 
+test('meczu otwartego w pokoju online nie da się usunąć ani przerwać (stół by się zablokował na ostatniej karcie)', async () => {
+  const m = (await players[0].get(`/api/matches/${matchId}`)).data.match;
+  for (const status of ['deleted', 'abandoned']) {
+    const r = await players[0].post(`/api/matches/${matchId}/status`, { baseRev: m.rev, opId: 'del-' + status, status });
+    assert.equal(r.status, 409, JSON.stringify(r.data));
+    assert.match(r.data.error, /pokoju online/);
+  }
+});
+
 test('unieważnienie rozdania: tylko administrator, bez zapisu punktów', async () => {
   await assert.rejects(players[0].wsc.act(roomId, { type: 'abort-hand' }), /administrator/);
 });
