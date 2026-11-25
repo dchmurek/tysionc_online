@@ -19,7 +19,7 @@ Zakodowane w `server/migrate/legacy.js` (`NAME_MAP`) i sprawdzane testami (`test
 4. Rekordy bez żadnej historii trafiają tylko do archiwum migracji. Drugi rekord „Akuro” (usunięty, 0 odwołań) jest dopisany jako alias Akuro; stary pusty rekord „Daniel” (usunięty, 0 odwołań) **nie** jest doklejany do nikogo.
 5. Tworzy 4 konta oczekujące na aktywację (bez haseł) z deterministycznymi, stałymi ID; **wszystkie cztery z rolą administratora** (ustalenie właściciela). Mecze dostają zasady: zaokrąglanie do 10, kontrakt sprawdzany po zaokrągleniu (dotyczy nowych rozdań – historyczne zachowują zapisany wynik).
 6. Przenosi mecze i rozdania; meldunki 1:1 (stare ♠ 60 → pik 60, stare ♣ 40 → trefl 40 – zgodnie z zasadami właściciela). Dane zmigrowane wcześniejszą wersją (z odwrotnym mapowaniem) serwer jednorazowo konwertuje przy starcie (`server/migrate/meldsV2.js`, kopia `pre-melds-v2`); rozdania dopisane już w nowej aplikacji zostają bez zmian. Oryginalne dane każdego rozdania zostają w `round.legacy`, a ustawienia i ID graczy meczu w `match.migratedFrom`.
-7. **Weryfikuje każdy mecz**: wyniki po każdym rozdaniu i zwycięzca muszą być identyczne jak w starym silniku (`legacy/php/engine.js`). Jakakolwiek różnica przerywa migrację.
+7. **Weryfikuje każdy mecz**: wyniki po każdym rozdaniu i zwycięzca muszą być identyczne jak w starym silniku (`server/migrate/legacyEngine.cjs` – kopia silnika z wersji PHP). Jakakolwiek różnica przerywa migrację.
 8. Grupuje mecze w sesje (spotkania): skupiska aktywności tej samej czwórki bez przerwy > 12 h.
 
 ## Wynik na prawdziwych danych (23.11.2026)

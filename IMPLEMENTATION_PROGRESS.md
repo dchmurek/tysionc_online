@@ -14,7 +14,7 @@ Ostatnia aktualizacja: 2026-11-23 · gałąź robocza: `rozbudowa` (bez pusha �
 | Decyzja | Uzasadnienie |
 |---|---|
 | Jeden serwer **Node.js** (HTTP + WebSocket) jako jedyny zapisujący dane | gra w czasie rzeczywistym wymaga stałego procesu; jeden zapisujący eliminuje konflikty PHP/Node na tych samych plikach |
-| PHP przeniesione do `legacy/php/` (niewdrażane) | możliwość wglądu/wycofania; brak równoległego zapisu |
+| PHP usunięte z repo (25.11; dostępne w historii git), silnik punktacji PHP zostaje w `server/migrate/legacyEngine.cjs` do weryfikacji migracji | mniej plików na serwerze; brak równoległego zapisu |
 | Magazyn JSON z kopertą (rev + SHA-256), zapis tmp→fsync→rename, kolejka per dokument, `.prev`, blokada `.writer.lock` | atomowość, wykrywanie uszkodzeń, odzyskiwanie, brak utraty aktualizacji |
 | Wynik meczu i statystyki zawsze liczone z rozdań (`shared/`) | korekty i migracje nie rozjeżdżają statystyk; „odbudowa” = przeliczenie |
 | Kod zasad w `shared/` (ES modules) używany przez serwer i przeglądarkę | jedna implementacja zasad; klient tylko podgląda, serwer decyduje |

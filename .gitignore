@@ -1,6 +1,8 @@
 .DS_Store
 dist/
 node_modules/
+# Biblioteki kopiowane z node_modules przez `npm install` / server/scripts/vendor.js
+public/vendor/
 
 # Dane produkcyjne, sekrety i kopie – NIGDY do repozytorium
 data/
@@ -13,9 +15,8 @@ backups-local/
 .env.*
 !.env.example
 
-# Stara wersja PHP: pliki ze skrótami haseł (w repo tylko *.example.php)
-legacy/php/config.php
-legacy/php/users.php
+# Stara wersja PHP (usunięta z repo) – lokalne pliki ze skrótami haseł
+legacy/
 
 # Wyniki testów
 test-results/

@@ -104,7 +104,6 @@ export function createRouter(svc) {
   });
 
   // --- dane wspólne ---
-  add('GET', '/api/users', async () => ({ users: (await accounts.allUsers()).map(Accounts.publicUser) }));
   add('POST', '/api/users/profile', async (ctx) => ({ user: Accounts.publicUser(await accounts.createProfile(ctx.user.id, ctx.body.nick)) }));
   add('GET', '/api/data', async (ctx) => ({
     users: (await accounts.allUsers()).map(Accounts.publicUser),
@@ -121,7 +120,6 @@ export function createRouter(svc) {
   add('POST', '/api/matches/:id/rounds', async (ctx) => matches.addRound(ctx.user, getId(ctx.params.id), ctx.body));
   add('PUT', '/api/matches/:id/rounds/:rid', async (ctx) => matches.editRound(ctx.user, getId(ctx.params.id), getId(ctx.params.rid), ctx.body));
   add('POST', '/api/matches/:id/undo', async (ctx) => matches.undoLast(ctx.user, getId(ctx.params.id), ctx.body));
-  add('POST', '/api/matches/:id/restore-round', async (ctx) => matches.restoreRound(ctx.user, getId(ctx.params.id), ctx.body));
   add('POST', '/api/matches/:id/status', async (ctx) => {
     if (ctx.body.status === 'deleted' && ctx.user.role !== 'admin') {
       const m = await matches.get(getId(ctx.params.id));
@@ -139,12 +137,6 @@ export function createRouter(svc) {
     const r = rooms.get(getId(ctx.params.id));
     if (!r.members.includes(ctx.user.id)) throw new AppError(403, 'Najpierw dołącz do pokoju kodem');
     return { room: rooms.viewFor(r, ctx.user.id) };
-  });
-  add('POST', '/api/rooms/:id/action', async (ctx) => {
-    const id = getId(ctx.params.id);
-    const r = await rooms.act(ctx.user, id, ctx.body || {});
-    const room = rooms.rooms.get(id);
-    return { ...r, room: room ? rooms.viewFor(room, ctx.user.id) : null };
   });
 
   // --- eksport ---

@@ -195,10 +195,12 @@ export class JsonStore {
     return entries.filter((f) => f.endsWith('.json')).map((f) => `${prefix}/${f.slice(0, -5)}`).sort();
   }
 
-  async remove(name) {
+  // keepPrev: false usuwa też kopię .prev (trwałe sprzątanie, np. starych zamkniętych pokoi).
+  async remove(name, { keepPrev = true } = {}) {
     return this.#enqueue(name, async () => {
       const file = this.file(name);
-      try { await fsp.copyFile(file, file + '.prev'); } catch { /* brak */ }
+      if (keepPrev) { try { await fsp.copyFile(file, file + '.prev'); } catch { /* brak */ } }
+      else await fsp.unlink(file + '.prev').catch(() => {});
       await fsp.unlink(file).catch((e) => { if (e.code !== 'ENOENT') throw e; });
       this.cache.delete(name);
     });

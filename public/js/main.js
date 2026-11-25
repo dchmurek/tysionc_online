@@ -94,7 +94,6 @@ async function render() {
   if (!r.opts.keepScroll) window.scrollTo(0, 0);
   measure();
 }
-export const rerender = () => render();
 
 function statusBanner() {
   if (state.conflicts.length) { banner('Mecz zmienił się na innym urządzeniu – wybierz, co zrobić z niewysłanymi rozdaniami.', 'warn'); return; }

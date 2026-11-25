@@ -31,7 +31,7 @@ export class MigrationError extends Error {
 function legacyEngine() {
   const require = createRequire(import.meta.url);
   const here = path.dirname(fileURLToPath(import.meta.url));
-  return require(path.join(here, '../../legacy/php/engine.js'));
+  return require(path.join(here, 'legacyEngine.cjs'));
 }
 
 // Czysta funkcja: stara baza → nowe dokumenty + raport. Nie dotyka dysku.

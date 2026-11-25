@@ -87,3 +87,18 @@ test('nieudany zapis wyniku przy ostatniej karcie nie blokuje stołu – ruch si
   assert.equal(room.status === 'between' || room.status === 'finished', true);
   assert.equal((await svc.matches.get(room.matchId)).rounds.length, 1);
 });
+
+test('zamknięte pokoje: plik usuwany po tygodniu (z .prev), wcześniej i otwarte zostają', async () => {
+  const u = users.slice(0, 4).map((x) => ({ ...x, role: 'player' }));
+  const old = await svc.rooms.create(u[0], {});
+  await svc.rooms.act(u[0], old.id, { type: 'leave' });
+  const open = await svc.rooms.create(u[1], {});
+  const store = srv.app.services.store;
+  assert.equal((await store.getData('rooms/' + old.id)).status, 'closed');
+  await svc.rooms.purgeClosed();
+  assert.ok(await store.getData('rooms/' + old.id), 'świeżo zamknięty zostaje');
+  const removed = await svc.rooms.purgeClosed(Date.now() + 8 * 864e5);
+  assert.ok(removed >= 1);
+  assert.equal(await store.getData('rooms/' + old.id), null);
+  assert.ok(await store.getData('rooms/' + open.id), 'otwarty pokój zostaje');
+});

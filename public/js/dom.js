@@ -84,11 +84,6 @@ export function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmtNum(M
 export function pct(x) { return x == null ? '–' : Math.round(x * 100) + '%'; }
 export function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' }) : '–'; }
 export function fmtDateTime(iso) { return iso ? new Date(iso).toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–'; }
-export function plural(n, one, few, many) {
-  if (n === 1) return one;
-  const d = n % 10, h = n % 100;
-  return d >= 2 && d <= 4 && (h < 10 || h >= 20) ? few : many;
-}
 export const vibrate = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* brak */ } };
 export const uid = (p = '') => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 

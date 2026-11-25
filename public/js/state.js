@@ -256,8 +256,4 @@ export async function logout() {
   emit('auth');
 }
 
-export function clearLocal() {
-  try { localStorage.removeItem(key('data')); localStorage.removeItem(key('queue')); } catch { /* */ }
-}
-
 export { get, post, put };

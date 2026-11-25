@@ -9,6 +9,8 @@ import { AppError } from './accounts.js';
 const now = () => new Date().toISOString();
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const IDLE_LOBBY_MS = 24 * 3600e3;
+// Zamknięty pokój nie jest już potrzebny (rozdania są w meczu) – plik usuwamy po tygodniu.
+const CLOSED_KEEP_MS = 7 * 864e5;
 
 export class Rooms {
   constructor(store, { matches, accounts, audit, randomInt = (n) => crypto.randomInt(n), onUpdate = () => {} }) {
@@ -27,7 +29,20 @@ export class Rooms {
       const d = await this.store.getData(name);
       if (d && d.status !== 'closed') this.rooms.set(d.id, d);
     }
+    await this.purgeClosed();
     return this.rooms.size;
+  }
+
+  async purgeClosed(t = Date.now()) {
+    let n = 0;
+    for (const name of await this.store.list('rooms')) {
+      const d = await this.store.getData(name).catch(() => null);
+      if (d && d.status === 'closed' && !this.rooms.has(d.id) && t - Date.parse(d.updatedAt || d.createdAt) > CLOSED_KEEP_MS) {
+        await this.store.remove(name, { keepPrev: false });
+        n++;
+      }
+    }
+    return n;
   }
 
   #newCode() {
@@ -330,5 +345,6 @@ export class Rooms {
         await this.#serial(r.id, async () => { r.status = 'closed'; this.rooms.delete(r.id); await this.#save(r); });
       }
     }
+    await this.purgeClosed(t);
   }
 }

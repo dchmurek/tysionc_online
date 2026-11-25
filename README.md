@@ -53,7 +53,6 @@ public/      aplikacja (moduły ES bez bundlera), CSS, PWA (manifest, Service Wo
 tests/       unit/, integration/, e2e/ (Playwright), fixtures/ (syntetyczne dane w formacie starej wersji)
 deploy/      systemd, nginx, Caddy, kopia poza serwer
 docs/        wdrożenie, zasady gry, migracja, bezpieczeństwo, model danych
-legacy/php/  poprzednia wersja (PHP) – tylko do wglądu/wycofania, nie jest wdrażana
 ```
 
 Dokumentacja: [docs/WDROZENIE.md](docs/WDROZENIE.md) · [docs/ZASADY.md](docs/ZASADY.md) · [docs/MIGRACJA.md](docs/MIGRACJA.md) · [docs/BEZPIECZENSTWO.md](docs/BEZPIECZENSTWO.md) · [docs/DANE.md](docs/DANE.md) · [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md)

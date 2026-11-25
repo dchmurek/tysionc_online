@@ -247,18 +247,6 @@ export class Matches {
     return out;
   }
 
-  async restoreRound(user, id, { baseRev, opId, roundId }) {
-    return this.#mutate(user, id, { baseRev, opId }, (m) => {
-      const i = (m.removedRounds || []).findIndex((r) => r.id === roundId);
-      if (i < 0) throw new AppError(404, 'Nie ma takiego usuniętego rozdania');
-      if (m.status !== 'active') throw new AppError(400, 'Mecz nie jest w toku');
-      const r = { ...m.removedRounds[i] };
-      delete r.removedAt; delete r.removedBy;
-      m.removedRounds.splice(i, 1);
-      m.rounds.push(r);
-    });
-  }
-
   async setStatus(user, id, { baseRev, opId, status }) {
     // Usunięcie/przerwanie meczu otwartego w pokoju online zablokowałoby stół (wyniku nie byłoby gdzie zapisać).
     if ((status === 'deleted' || status === 'abandoned') && (await this.hasRoom(id))) {
