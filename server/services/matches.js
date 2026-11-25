@@ -13,11 +13,12 @@ const MEET_GAP_MS = 12 * 3600e3;
 const MAX_OPS = 300;
 
 export class Matches {
-  constructor(store, { accounts, audit, isLive = async () => false, onChange = () => {} }) {
+  constructor(store, { accounts, audit, isLive = async () => false, hasRoom = async () => false, onChange = () => {} }) {
     this.store = store;
     this.accounts = accounts;
     this.audit = audit;
     this.isLive = isLive;       // czy mecz ma trwające rozdanie online
+    this.hasRoom = hasRoom;     // czy mecz jest otwarty w pokoju online (także między rozdaniami)
     this.onChange = onChange;   // powiadomienie (np. WebSocket)
   }
 
@@ -259,6 +260,10 @@ export class Matches {
   }
 
   async setStatus(user, id, { baseRev, opId, status }) {
+    // Usunięcie/przerwanie meczu otwartego w pokoju online zablokowałoby stół (wyniku nie byłoby gdzie zapisać).
+    if ((status === 'deleted' || status === 'abandoned') && (await this.hasRoom(id))) {
+      throw new AppError(409, 'Ten mecz jest otwarty w pokoju online – najpierw przejdź w pokoju do trybu offline albo zakończ grę', 'live');
+    }
     const out = await this.#mutate(user, id, { baseRev, opId }, (m) => {
       if (status === 'abandoned') {
         if (m.status !== 'active') throw new AppError(400, 'Przerwać można tylko trwający mecz');

@@ -204,13 +204,25 @@ export class Rooms {
               : msg.type === 'give-all' ? { type: 'give-all', gives: Array.isArray(msg.gives) ? msg.gives.slice(0, 3).map((g) => ({ card: g && g.card, to: g && g.to })) : null }
                 : { type: 'pass' };
         const meldsBefore = room.hand.melds.length;
+        // Akcja jest atomowa: gdy zapis wyniku się nie uda, stan wraca sprzed ruchu (gracz może spróbować ponownie),
+        // zamiast zostawić rozdanie „zakończone”, którego nie da się już dokończyć.
+        const before = structuredClone(room.hand);
+        const logBefore = room.log;
         applyAction(room.hand, seat, action);
         // Dziennik widzą wszyscy – karta oddana z musika jest tajna (widzi ją tylko odbiorca).
         const entry = action.type === 'give' ? { type: 'give', to: action.to }
           : action.type === 'give-all' ? { type: 'give-all', to: action.gives.map((g) => g.to) } : { ...action };
         if (room.hand.melds.length > meldsBefore) entry.meld = room.hand.melds.at(-1).suit;
         room.log = [...room.log, { at: now(), seat, ...entry }].slice(-60);
-        if (room.hand.phase === 'finished') await this.#finishHand(room);
+        if (room.hand.phase === 'finished') {
+          try {
+            await this.#finishHand(room);
+          } catch (e) {
+            room.hand = before;
+            room.log = logBefore;
+            throw e;
+          }
+        }
         break;
       }
       case 'detach': {
@@ -271,6 +283,7 @@ export class Rooms {
 
   async #deal(room) {
     const m = await this.matches.get(room.matchId);
+    if (!m || m.status !== 'active') throw new AppError(400, 'Mecz nie jest w toku (usunięty, przerwany albo zakończony) – nie można rozdać kart');
     const c = computeMatch(m);
     room.handNo++;
     room.hand = createHand({ dealerSeat: c.nextDealerSeat, settings: m.settings, randomInt: this.randomInt });

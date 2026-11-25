@@ -64,6 +64,13 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
   await expect(host.locator('.hand .pcard.back')).toHaveCount(0);
   await expect(host.locator('.musik .pcard')).toHaveCount(4);
   await host.screenshot({ path: `test-results/screens/${testInfo.project.name}-31-bidding.png` });
+  // historia licytacji w panelu z boku
+  await host.click('[data-act=bids].gi-btn');
+  await expect(host.locator('.side-panel .sp-list li')).toHaveCount(1);
+  await host.waitForTimeout(400);
+  await host.screenshot({ path: `test-results/screens/${testInfo.project.name}-31a-bids.png` });
+  await host.locator('.side-panel [data-act=bids]').click();
+  await expect(host.locator('.side-panel')).toHaveCount(0);
 
   let shotPlay = false;
   let giveShot = false;
