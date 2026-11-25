@@ -30,11 +30,17 @@ Zakodowane w `server/migrate/legacy.js` (`NAME_MAP`) i sprawdzane testami (`test
 - Archiwum: Banderowiec, Kamilek, Daniel (pusty, usunięty), drugi Akuro (alias).
 - Ostrzeżenie: jedno rozdanie z ugranymi < kontrakt (zachowane jak w oryginale).
 
+## Dosynchronizowanie 25.11.2026
+
+Nowsza kopia produkcyjna (`data_oryginal`, 11 meczów, 183 rozdania) – wszystkie wyniki identyczne co do punktu. Mecz z 18.11 (`gmwm586ims9y6b`) dograny do końca w PHP (44 rozdania) zastąpił lokalną kopię testową; doszedł mecz z 25.11 (w toku, sesja otwarta).
+
 ## Bezpieczeństwo migracji
 
 - Przed zapisem: kopia `pre-migration` całego magazynu; plik źródłowy kopiowany do `DATA_DIR/migrations/`.
 - Raport zapisywany do `DATA_DIR/migrations/report-*.json`.
 - **Idempotencja**: ponowne uruchomienie z tym samym plikiem niczego nie zmienia (nie resetuje haseł kont, nie nadpisuje meczów zmienionych po migracji).
+- **Dosynchronizowanie z nowszą bazą PHP** (np. gdy stara strona działa dalej do dnia wdrożenia): `npm run migrate -- --source data/db.json` dopisuje nowe mecze, nowe rozdania i zmiany statusu w meczach nietkniętych w nowej aplikacji oraz odświeża sesje z migracji. Mecz zmieniony w nowej aplikacji (dopisane rozdanie, usunięty, pokój online) jest pomijany i wypisany w raporcie; `--prefer-source` zastępuje go wersją z pliku (po kopii `pre-migration`).
+- Sesje bez żadnego rozpoczętego meczu (dzień, w którym tylko dokończono mecz) nie są tworzone.
 - Wycofanie: przywróć kopię `pre-migration` (Panel → Administracja lub `admin.js restore`).
 - Tryb próbny: `--dry-run` (wypisuje raport, nic nie zapisuje).
 

@@ -136,7 +136,7 @@ export async function applyImport(token, services, adminId) {
   const { store, backup, audit } = services;
   if (p.plan.kind === 'legacy') {
     const res = await applyMigration(store, p.plan.migration, { backup });
-    await audit('admin.import.legacy', { adminId, created: res.createdMatches.length });
+    await audit('admin.import.legacy', { adminId, created: res.createdMatches.length, updated: res.updatedMatches.length });
     return res;
   }
   const b = await backup('pre-import');

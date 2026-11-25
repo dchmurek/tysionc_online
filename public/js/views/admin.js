@@ -111,7 +111,7 @@ export function admin({ el, go }) {
         case 'restore-cancel': d.restorePrev = null; draw(); break;
         case 'restore-apply': if (await confirmBox('Przywrócić kopię?', 'Wszystkie bieżące dane zostaną zastąpione zawartością kopii (aktualny stan trafi do kopii pre-restore).', 'Przywróć', 'danger')) { const r = await post('/api/admin/restore/apply'); d.restorePrev = null; toast(`Przywrócono ${r.restored} dokumentów`); await loadData(); load(); } break;
         case 'import-cancel': await post('/api/admin/import/cancel', { token: d.importPrev.token }); d.importPrev = null; draw(); break;
-        case 'import-apply': { const r = await post('/api/admin/import/apply', { token: d.importPrev.token }); d.importPrev = null; toast(`Zaimportowano: ${(r.createdMatches || []).length} meczów`); await loadData(); load(); break; }
+        case 'import-apply': { const r = await post('/api/admin/import/apply', { token: d.importPrev.token }); d.importPrev = null; toast(`Zaimportowano: ${(r.createdMatches || []).length} nowych meczów${r.updatedMatches && r.updatedMatches.length ? `, zaktualizowano ${r.updatedMatches.length}` : ''}`); await loadData(); load(); break; }
         case 'diag': d.diag = await get('/api/admin/diagnostics'); draw(); break;
         case 'rebuild': d.diag = await post('/api/admin/rebuild-stats'); draw(); break;
         default:

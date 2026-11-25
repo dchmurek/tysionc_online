@@ -1,5 +1,6 @@
 // Migracja danych ze starej wersji PHP.
-// Użycie:  npm run migrate -- --source data/db.json [--dry-run]
+// Użycie:  npm run migrate -- --source data/db.json [--dry-run] [--prefer-source]
+//   --prefer-source  mecze ze starej aplikacji zmienione lokalnie w nowej zastępuje wersją ze źródła (po kopii)
 // Uruchamiaj przy zatrzymanym serwerze (magazyn ma jednego zapisującego).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,7 @@ loadEnvFile();
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const dry = args.includes('--dry-run');
+const preferSource = args.includes('--prefer-source');
 const source = path.resolve(ROOT, opt('--source') || 'data/db.json');
 const config = getConfig();
 
@@ -39,7 +41,7 @@ if (dry) { console.log('(--dry-run: nic nie zapisano)'); process.exit(0); }
 
 const store = await new JsonStore(config.dataDir, { validators }).init();
 try {
-  const res = await applyMigration(store, plan, { backup: (label) => createBackup(store, label) });
+  const res = await applyMigration(store, plan, { backup: (label) => createBackup(store, label), preferSource });
   const dir = path.join(config.dataDir, 'migrations');
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -47,7 +49,10 @@ try {
   fs.copyFileSync(source, path.join(dir, `source-${r.sourceSha256.slice(0, 16)}.json`));
   console.log(res.alreadyApplied ? 'Migracja była już wykonana – nic nie nadpisano.' : 'Migracja zakończona.');
   console.log('Utworzone konta:', res.createdUsers.join(', ') || '–', '| istniejące:', res.keptUsers.join(', ') || '–');
-  console.log('Utworzone mecze:', res.createdMatches.length, '| pominięte:', res.skippedMatches.length, '| sesje:', res.createdMeets.length);
+  console.log('Mecze – nowe:', res.createdMatches.length, '| zaktualizowane:', res.updatedMatches.length, '| pominięte:', res.skippedMatches.length);
+  for (const u of res.updatedMatches.filter((x) => !x.unchanged)) console.log(`  ${u.id}: rozdania ${u.rounds}, status ${u.status}${u.replaced ? ' (zastąpiony wersją ze źródła)' : ''}`);
+  for (const s of res.skippedMatches) if (s.reason !== 'już zmigrowany') console.log(`  pominięto ${s.id}: ${s.reason}`);
+  console.log('Sesje – nowe:', res.createdMeets.length, '| zaktualizowane:', res.updatedMeets.length, '| usunięte:', res.removedMeets.length);
   console.log('Kopia przed migracją:', res.backup && res.backup.name);
 } catch (e) {
   console.error('BŁĄD:', e.message);

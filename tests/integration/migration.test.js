@@ -115,6 +115,40 @@ test('zastosowanie: kopia przed migracją, idempotencja, brak duplikatów, staty
   store.close();
 });
 
+test('nowszy plik źródłowy: dosynchronizowanie rozdań, nowe mecze; mecze zmienione w nowej aplikacji zostają (chyba że --prefer-source)', async () => {
+  const dir = tmpDir();
+  const store = await new JsonStore(dir, { validators }).init();
+  const older = fixture();
+  const active = older.games.find((g) => g.status === 'active');
+  const full = structuredClone(active.rounds);
+  active.rounds = full.slice(0, Math.max(1, full.length - 1));
+  const extra = older.games.pop();
+  if (extra === active) throw new Error('fikstura: aktywny mecz nie może być ostatni');
+  await applyMigration(store, planMigration(older), {});
+  assert.equal((await store.list('matches')).length, 2);
+
+  const newer = fixture();
+  const res = await applyMigration(store, planMigration(newer), {});
+  assert.equal(res.alreadyApplied, false);
+  assert.deepEqual(res.createdMatches, [extra.id]);
+  assert.equal(res.updatedMatches.filter((u) => !u.unchanged).length, 1);
+  assert.equal((await store.getData('matches/' + active.id)).rounds.length, full.length);
+  assert.equal(res.createdUsers.length, 0);
+
+  // zmiana w nowej aplikacji → kolejna synchronizacja nie nadpisuje
+  await store.update('matches/' + active.id, (m) => { m.status = 'deleted'; return m; });
+  const newest = fixture();
+  newest.games.find((g) => g.id === active.id).rounds.push(structuredClone(full[0]));
+  const res2 = await applyMigration(store, planMigration(newest), {});
+  assert.ok(res2.skippedMatches.some((s) => s.id === active.id && /zmieniony/.test(s.reason)));
+  assert.equal((await store.getData('matches/' + active.id)).status, 'deleted');
+  const res3 = await applyMigration(store, planMigration(newest), { preferSource: true });
+  assert.ok(res3.updatedMatches.some((u) => u.id === active.id && u.replaced));
+  assert.equal((await store.getData('matches/' + active.id)).rounds.length, full.length + 1);
+  assert.equal((await store.verifyAll()).length, 0);
+  store.close();
+});
+
 test('istniejące konto „Kamil” innej osoby blokuje migrację (bez nadpisania)', async () => {
   const dir = tmpDir();
   const store = await new JsonStore(dir, { validators }).init();

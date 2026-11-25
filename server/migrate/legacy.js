@@ -173,6 +173,8 @@ export function planMigration(legacy, { now = new Date().toISOString() } = {}) {
     }
     for (const m of list) m.meetId = clusters.find((c) => m.createdAt >= c.start && m.createdAt <= c.end).id;
   }
+  // Skupiska aktywności bez żadnego rozpoczętego meczu (np. dzień, w którym tylko dokończono mecz) nie tworzą sesji.
+  for (const id of Object.keys(meets)) if (!matches.some((m) => m.meetId === id)) delete meets[id];
   // Ostatnia sesja z trwającym meczem zostaje otwarta.
   for (const m of matches) if (m.status === 'active' && meets[m.meetId]) { meets[m.meetId].status = 'open'; meets[m.meetId].endedAt = null; }
   report.meets = Object.values(meets).map((s) => ({ id: s.id, startedAt: s.startedAt, endedAt: s.endedAt, status: s.status, matches: matches.filter((m) => m.meetId === s.id).map((m) => m.id) }));
@@ -180,11 +182,24 @@ export function planMigration(legacy, { now = new Date().toISOString() } = {}) {
   return { users, matches, meets, report, sourceSha };
 }
 
-// Zastosowanie planu w magazynie. Nie nadpisuje danych zmienionych po migracji.
-export async function applyMigration(store, plan, { backup } = {}) {
+// Czy mecz w magazynie nadal jest „czystą” kopią starej aplikacji (nikt go nie zmienił w nowej):
+// wszystkie rozdania pochodzą z migracji i są początkiem rozdań z nowego źródła, status bez ingerencji.
+function isPristineLegacy(cur, next) {
+  if (!cur.migratedFrom || cur.migratedFrom.legacyId !== next.id) return false;
+  if (cur.status === 'deleted' || cur.status === 'abandoned' || cur.roomId) return false;
+  if (cur.rounds.length > next.rounds.length) return false;
+  return cur.rounds.every((r, i) => r.scoring === 'legacy' && r.id === next.rounds[i].id
+    && JSON.stringify(r.legacy) === JSON.stringify(next.rounds[i].legacy));
+}
+
+// Zastosowanie planu w magazynie. Nie nadpisuje danych zmienionych po migracji
+// (chyba że preferSource: wtedy mecze ze starej aplikacji są zastępowane wersją ze źródła – po kopii zapasowej).
+// Ponowne uruchomienie z NOWSZYM plikiem źródłowym dosynchronizowuje: nowe mecze, nowe rozdania w meczach
+// nietkniętych w nowej aplikacji, status/zwycięzca, sesje.
+export async function applyMigration(store, plan, { backup, preferSource = false } = {}) {
   const meta = (await store.getData('meta')) || { schemaVersion: 2, migrations: [] };
   const prev = meta.migrations.find((m) => m.id === MIGRATION_ID && m.sourceSha256 === plan.sourceSha);
-  const result = { alreadyApplied: !!prev, createdUsers: [], keptUsers: [], createdMatches: [], skippedMatches: [], createdMeets: [], backup: null };
+  const result = { alreadyApplied: !!prev, createdUsers: [], keptUsers: [], createdMatches: [], updatedMatches: [], skippedMatches: [], createdMeets: [], updatedMeets: [], removedMeets: [], backup: null };
   if (backup) result.backup = await backup('pre-migration');
 
   await store.update('users', (doc) => {
@@ -203,25 +218,47 @@ export async function applyMigration(store, plan, { backup } = {}) {
   for (const m of plan.matches) {
     const name = 'matches/' + m.id;
     const cur = await store.get(name);
-    if (cur) {
-      result.skippedMatches.push({ id: m.id, reason: cur.data.migratedFrom && cur.data.migratedFrom.sourceSha256 === plan.sourceSha ? 'już zmigrowany' : 'istnieje (nie nadpisano)' });
+    if (!cur) {
+      await store.update(name, () => m);
+      result.createdMatches.push(m.id);
       continue;
     }
+    const c = cur.data;
+    if (c.migratedFrom && c.migratedFrom.sourceSha256 === plan.sourceSha) { result.skippedMatches.push({ id: m.id, reason: 'już zmigrowany' }); continue; }
+    const pristine = isPristineLegacy(c, m);
+    if (!pristine && !(preferSource && c.migratedFrom && c.migratedFrom.legacyId === m.id)) {
+      result.skippedMatches.push({ id: m.id, reason: c.migratedFrom ? 'zmieniony w nowej aplikacji (nie nadpisano; --prefer-source zastępuje)' : 'istnieje (nie nadpisano)' });
+      continue;
+    }
+    const same = c.rounds.length === m.rounds.length && c.status === m.status && c.winner === m.winner && c.meetId === m.meetId;
     await store.update(name, () => m);
-    result.createdMatches.push(m.id);
+    result.updatedMatches.push({ id: m.id, rounds: `${c.rounds.length} → ${m.rounds.length}`, status: `${c.status} → ${m.status}`, replaced: !pristine, unchanged: same });
   }
 
   await store.update('meets', (doc) => {
     doc = doc || { meets: {} };
     let changed = false;
     for (const s of Object.values(plan.meets)) {
-      if (doc.meets[s.id]) continue;
-      doc.meets[s.id] = s;
-      result.createdMeets.push(s.id);
-      changed = true;
+      const cur = doc.meets[s.id];
+      if (!cur) { doc.meets[s.id] = s; result.createdMeets.push(s.id); changed = true; continue; }
+      if (cur.migration !== MIGRATION_ID) continue;
+      if (JSON.stringify(cur) !== JSON.stringify(s)) { doc.meets[s.id] = s; result.updatedMeets.push(s.id); changed = true; }
     }
     return changed ? doc : undefined;
   });
+  // Sesje z migracji, których nie ma już w planie i do których nie należy żaden mecz – usuwamy.
+  const stale = [];
+  const curMeets = ((await store.getData('meets')) || { meets: {} }).meets;
+  for (const s of Object.values(curMeets)) if (s.migration === MIGRATION_ID && !plan.meets[s.id]) stale.push(s.id);
+  if (stale.length) {
+    const used = new Set();
+    for (const n of await store.list('matches')) { const d = await store.getData(n); if (d && d.meetId) used.add(d.meetId); }
+    const drop = stale.filter((id) => !used.has(id));
+    if (drop.length) {
+      await store.update('meets', (doc) => { for (const id of drop) delete doc.meets[id]; return doc; });
+      result.removedMeets.push(...drop);
+    }
+  }
 
   if (!prev) {
     await store.update('meta', (d) => {
