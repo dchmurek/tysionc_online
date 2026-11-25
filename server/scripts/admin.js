@@ -1,6 +1,7 @@
 // Narzędzia administratora (uruchamiaj przy ZATRZYMANYM serwerze):
 //   npm run admin -- users
 //   npm run admin -- activation <nick> [--reset]     → jednorazowy kod aktywacji / resetu hasła
+//   npm run admin -- password <nick> <hasło>        → ustawia hasło (np. tymczasowe – gracz zmienia je w Profilu)
 //   npm run admin -- role <nick> admin|player
 //   npm run admin -- backup
 //   npm run admin -- backups
@@ -11,6 +12,7 @@ import { JsonStore } from '../store/jsonStore.js';
 import { validators } from '../store/schemas.js';
 import { createBackup, listBackups, readBackup, restoreBundle } from '../store/backup.js';
 import { Accounts } from '../services/accounts.js';
+import { hashPassword, passwordProblem } from '../services/passwords.js';
 
 loadEnvFile();
 const config = getConfig();
@@ -45,6 +47,22 @@ try {
       console.log('Przekaż go osobiście. Gracz wpisuje go na stronie: „Aktywuj konto”.');
       break;
     }
+    case 'password': {
+      const u = await userByNick(rest[0]);
+      const problem = passwordProblem(rest[1], u.nick);
+      if (problem) throw new Error(problem);
+      const h = await hashPassword(rest[1]);
+      const t = new Date().toISOString();
+      await store.update('users', (doc) => {
+        const x = doc.users[u.id];
+        x.passwordHash = h; x.status = 'active'; x.activation = null; x.passwordChangedAt = t; x.updatedAt = t;
+        return doc;
+      });
+      await accounts.revokeAll(u.id);
+      await audit('user.password.cli', { userId: u.id });
+      console.log(`${u.nick}: hasło ustawione, stare sesje wylogowane.`);
+      break;
+    }
     case 'role': {
       const u = await userByNick(rest[0]);
       await accounts.setRole(CLI, u.id, rest[1]);
@@ -66,7 +84,7 @@ try {
       break;
     }
     default:
-      console.log('Polecenia: users | activation <nick> [--reset] | role <nick> admin|player | backup | backups | restore <nazwa> | verify');
+      console.log('Polecenia: users | activation <nick> [--reset] | password <nick> <hasło> | role <nick> admin|player | backup | backups | restore <nazwa> | verify');
   }
 } catch (e) {
   console.error('Błąd:', e.message);
