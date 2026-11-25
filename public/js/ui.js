@@ -44,7 +44,10 @@ export function colorOf(id) {
 export const dot = (id) => html`<i class="dot" style="--pc:${colorOf(id)}" aria-hidden="true"></i>`;
 export const who = (id) => html`<span class="who-n">${dot(id)}${nick(id)}</span>`;
 export const teamName = (team) => team.map((id) => nick(id)).join(' & ');
-export const teamDots = (team) => html`${team.map((id) => dot(id))}`;
+// Kolory drużyn: A (miejsca 1+3) = --c1, B (2+4) = --c2. Przy stole obaj partnerzy mają ten sam kolor.
+export const TEAM_COLOR = ['var(--c1)', 'var(--c2)'];
+export const teamDot = (t) => html`<i class="dot" style="--pc:${TEAM_COLOR[t]}" aria-hidden="true"></i>`;
+export const teamDots = (team, t) => (t === 0 || t === 1 ? teamDot(t) : html`${team.map((id) => dot(id))}`);
 
 export const suitSym = (s) => html`<span class="suit ${SUIT_INFO[s].red ? 'red' : ''}" title="${SUIT_INFO[s].name}">${SUIT_INFO[s].symbol}︎</span>`;
 

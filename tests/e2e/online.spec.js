@@ -32,10 +32,16 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
   await expect(host.locator('.room-code')).toBeVisible();
   const code = (await host.locator('.room-code').innerText()).trim();
   expect(code).toMatch(/^[A-Z0-9]{6}$/);
-  for (const p of pages.slice(1)) {
-    await p.goto('/#/online');
-    await p.fill('input[name=code]', code.toLowerCase());
-    await p.click('form[data-form=join] button[type=submit]');
+  await expect(host.locator('.qr-box')).toBeAttached();
+  for (const [i, p] of pages.slice(1).entries()) {
+    if (i === 2) {
+      // ostatni gracz wchodzi linkiem zaproszenia – zalogowany trafia od razu do pokoju
+      await p.goto('/#/join/' + code);
+    } else {
+      await p.goto('/#/online');
+      await p.fill('input[name=code]', code.toLowerCase());
+      await p.click('form[data-form=join] button[type=submit]');
+    }
     await expect(p.locator('.room-code')).toHaveText(code);
   }
   // miejsca 1–4 po kolei
@@ -51,6 +57,11 @@ test('pełne rozdanie online w 4 przeglądarkach + przejście do trybu offline',
   for (const p of pages) await expect(p.locator('.felt-table')).toBeVisible();
   // każdy widzi 6 swoich kart i karty przeciwników jako rewersy (lub ukryte)
   for (const p of pages) await expect(p.locator('.hand .pcard')).toHaveCount(5); // po 5 kart + 4 w musiku
+  // zakrywanie kart: rewersy zamiast kart, potem z powrotem
+  await host.click('[data-act=hide-cards]');
+  await expect(host.locator('.hand .pcard.back')).toHaveCount(5);
+  await host.click('[data-act=hide-cards]');
+  await expect(host.locator('.hand .pcard.back')).toHaveCount(0);
   await expect(host.locator('.musik .pcard')).toHaveCount(4);
   await host.screenshot({ path: `test-results/screens/${testInfo.project.name}-31-bidding.png` });
 

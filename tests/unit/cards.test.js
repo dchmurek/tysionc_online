@@ -1,8 +1,9 @@
+import crypto from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fullDeck, shuffle, createHand, applyAction, legalCards, canMeld, viewFor, handToRound,
-  cardPoints, beats, trickWinnerIndex, meldOnSeat, meldableCards,
+  cardPoints, beats, trickWinnerIndex, meldOnSeat, meldableCards, dealSequence,
 } from '../../shared/cards.js';
 import { DEFAULT_SETTINGS, RuleError } from '../../shared/rules.js';
 
@@ -13,13 +14,9 @@ const seeded = (seed) => {
 // Talia ułożona tak, by po rozdaniu musika gracze mieli konkretne 6 kart (rozdający 3 → gracz 0 dostaje pierwszy).
 // Gracz 0 wygrywa licytację; dostaje karty 0–4, musik = szósta karta każdego gracza, potem oddaje je właścicielom.
 function deckFor(hands, dealerSeat = 3) {
-  const deck = [];
-  for (let i = 0; i < 20; i++) {
-    const seat = (dealerSeat + 1 + i) % 4;
-    deck.push(hands[seat][Math.floor(i / 4)]);
-  }
-  for (let s = 0; s < 4; s++) deck.push(hands[s][5]);
-  return deck;
+  const idx = [0, 0, 0, 0];
+  let m = 0;
+  return dealSequence(dealerSeat).map((to) => (to === 'm' ? hands[m++][5] : hands[to][idx[to]++]));
 }
 
 test('talia ma 24 unikalne karty i 120 punktów', () => {
@@ -65,23 +62,47 @@ test('licytacja: obowiązkowe 100 u gracza po rozdającym, przebijanie o 10, pas
   assert.equal(h.turn, 2);
   assert.throws(() => applyAction(h, 3, { type: 'bid', value: 110 }), /kolej/);
   assert.throws(() => applyAction(h, 2, { type: 'bid', value: 105 }), RuleError);
-  assert.throws(() => applyAction(h, 2, { type: 'bid', value: 100 }), /co najmniej 110/);
-  applyAction(h, 2, { type: 'bid', value: 150 });
+  assert.throws(() => applyAction(h, 2, { type: 'bid', value: 100 }), /tylko 110/);
+  assert.throws(() => applyAction(h, 2, { type: 'bid', value: 150 }), /tylko 110/, 'bez skakania – tylko +10');
+  applyAction(h, 2, { type: 'bid', value: 110 });
   applyAction(h, 3, { type: 'pass' });
   applyAction(h, 0, { type: 'pass' });
   assert.equal(h.turn, 1);
-  applyAction(h, 1, { type: 'bid', value: 160 });
+  applyAction(h, 1, { type: 'bid', value: 120 });
   assert.equal(h.turn, 2); // 3 i 0 spasowali – pomijani
   applyAction(h, 2, { type: 'pass' });
   assert.equal(h.phase, 'giving');
-  assert.deepEqual(h.contract, { seat: 1, team: 1, value: 160 });
+  assert.deepEqual(h.contract, { seat: 1, team: 1, value: 120 });
   assert.equal(h.turn, 1); // grający bierze musik
 });
 
-test('licytacja bez ograniczenia meldunkami (np. 300 bez meldunku) i limit maxBid', () => {
+test('licytacja co 10 bez ograniczenia meldunkami (aż do 400) i limit maxBid', () => {
   const h = createHand({ dealerSeat: 0, settings: {}, randomInt: seeded(3) });
-  applyAction(h, 2, { type: 'bid', value: 300 });
-  assert.throws(() => applyAction(h, 3, { type: 'bid', value: 410 }), /Maksymalna/);
+  while (h.bidding.highest < 400) applyAction(h, h.turn, { type: 'bid', value: h.bidding.highest + 10 });
+  assert.throws(() => applyAction(h, h.turn, { type: 'bid', value: 410 }), /Maksymalna/);
+});
+
+test('rozdawanie: rozdający sobie pierwszą kartę, potem lewy, naprzeciwko, prawy, musik – po kolei', () => {
+  assert.deepEqual(dealSequence(2).slice(0, 10), [2, 3, 0, 1, 'm', 2, 3, 0, 1, 'm']);
+  const seq = dealSequence(0);
+  assert.equal(seq.length, 24);
+  assert.equal(seq.filter((x) => x === 'm').length, 4);
+  for (const s of [0, 1, 2, 3]) assert.equal(seq.filter((x) => x === s).length, 5);
+  const deck = fullDeck();
+  const h = createHand({ dealerSeat: 1, settings: {}, deck });
+  assert.deepEqual(h.hands[1].slice(0, 2), [deck[0], deck[5]]);
+  assert.deepEqual(h.hands[2][0], deck[1]);
+  assert.deepEqual(h.musik, [deck[4], deck[9], deck[14], deck[19]]);
+});
+
+test('tasowanie jest równomierne (każda karta na każdej pozycji ~ tak samo często)', () => {
+  const N = 24000;
+  const counts = Array.from({ length: 24 }, () => new Array(24).fill(0));
+  const deck = fullDeck();
+  const rnd = (n) => crypto.randomInt(n);
+  for (let i = 0; i < N; i++) shuffle(deck, rnd).forEach((c, pos) => counts[deck.indexOf(c)][pos]++);
+  const exp = N / 24;
+  for (const row of counts) for (const c of row) assert.ok(Math.abs(c - exp) < exp * 0.2, `odchylenie ${c} vs ${exp}`);
 });
 
 test('wszyscy pasują → obowiązkowe 100 gra', () => {

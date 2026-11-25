@@ -1044,3 +1044,14 @@ body.in-game .cta-wrap { bottom: var(--safe-b); }
 .felt-table.compact .trick { display: none; }
 .felt-table.compact .seat-box.bottom { display: none; }
 span.pcard { display: inline-block; }
+
+/* Zaproszenie: przyciski kopiowania i kod QR */
+.code-btns { justify-content: center; }
+.qr-box { margin-top: 8px; text-align: center; }
+.qr-box summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+.qr { display: block; width: min(220px, 70vw); height: auto; margin: 10px auto 6px; border-radius: 8px; }
+
+/* Zakryte karty w ręce */
+.hide-toggle { display: block; margin: 2px auto 0; }
+.hidden-hand .pcard.back { --w: min(clamp(46px, 13.2vw, 74px), calc((100vw - 36px) / var(--n) - 4px)); }
+.gs-n .dot { margin-right: 5px; }

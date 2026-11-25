@@ -18,6 +18,7 @@ route('/offline/new', () => import('./views/offline.js').then((m) => m.newMatch)
 route('/match/:id', () => import('./views/offline.js').then((m) => m.table), { tab: 'play' });
 route('/match/:id/details', () => import('./views/match.js').then((m) => m.details), { tab: 'history' });
 route('/online', () => import('./views/online.js').then((m) => m.lobby), { tab: 'play' });
+route('/join/:code', () => import('./views/online.js').then((m) => m.joinLink), { tab: 'play' });
 route('/room/:id', () => import('./views/online.js').then((m) => m.room), { tab: 'play', game: true });
 route('/play', () => import('./views/home.js').then((m) => m.play), { tab: 'play' });
 route('/stats', () => import('./views/stats.js').then((m) => m.overview), { tab: 'stats' });
@@ -65,7 +66,10 @@ async function render() {
   let r = null;
   for (const x of routes) { const m = path.match(x.re); if (m) { r = x; match = m; break; } }
   if (!r) { go('/', { replace: true }); return; }
-  if (!r.opts.public && !state.me) { go('/login', { replace: true }); return; }
+  if (!r.opts.public && !state.me) {
+    if (/^\/(join|room)\//.test(path)) sessionStorage.setItem('tys2:next', path);
+    go('/login', { replace: true }); return;
+  }
   if (r.opts.public && state.me && state.me.status === 'active' && path !== '/activate') { go('/', { replace: true }); return; }
   if (cleanup) { try { cleanup(); } catch { /* */ } cleanup = null; }
   const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(match[i + 1])]));

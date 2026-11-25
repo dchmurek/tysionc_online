@@ -3,7 +3,7 @@ import { html, mount, $, toast, confirmBox, dialog, fmtNum, signed, fmtDateTime,
 import { state, nick, matchById, matchOp, createMatch, subscribe, post, pendingFor, loadData } from '../state.js';
 import { computeMatch, validateRoundInput, teamOfUser, meldPointsOf, meldsCount } from '/shared/scoring.js';
 import { SUIT_INFO, DEFAULT_SETTINGS, CARD_POINTS_TOTAL } from '/shared/rules.js';
-import { icon, dot, colorOf, suitSym, teamDots } from '../ui.js';
+import { icon, dot, colorOf, suitSym, teamDots, TEAM_COLOR } from '../ui.js';
 
 const ROUNDING_LABEL = { nearest10: 'do najbliższej dziesiątki (5 w górę)', down10: 'w dół do dziesiątki', exact: 'bez zaokrąglania' };
 const CHECK_LABEL = { raw: 'przed zaokrągleniem', rounded: 'po zaokrągleniu' };
@@ -114,8 +114,8 @@ export function table({ el, params, go, setCta, setBar }) {
       if (!finished && team.includes(dealer)) pills.push(html`<span class="pill deal">rozdaje ${nick(dealer)}</span>`);
       const w = Math.max(0, Math.min(100, (sc / c.settings.target) * 100));
       const isLead = c.winner === null && sc === lead && sc > 0 && c.scores[1 - t] !== lead;
-      return html`<div class="tile ${c.winner === t ? 'win' : ''} ${isLead ? 'lead' : ''}" style="--pc:${colorOf(team[0])}">
-        <div class="tname">${teamDots(team)}<span>${team.map((p) => nick(p)).join(' & ')}</span></div>
+      return html`<div class="tile ${c.winner === t ? 'win' : ''} ${isLead ? 'lead' : ''}" style="--pc:${TEAM_COLOR[t]}">
+        <div class="tname">${teamDots(team, t)}<span>${team.map((p) => nick(p)).join(' & ')}</span></div>
         <div class="tscore ${sc < 0 ? 'neg' : ''}" data-from="${prev[t]}" data-to="${sc}">${fmtNum(prev[t])}</div>
         <div class="tmeta">${pills}</div>
         <div class="tbar"><i style="width:${w}%"></i><span class="mark" style="left:${(c.cap / c.settings.target) * 100}%"></span></div>

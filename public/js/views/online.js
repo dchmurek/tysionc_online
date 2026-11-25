@@ -1,10 +1,11 @@
 // Tryb online: poczekalnia (pokoje) i stół gry. Stan gry przychodzi wyłącznie z serwera (WebSocket).
-import { html, mount, $, toast, confirmBox, fmtNum, signed, raw, vibrate } from '../dom.js';
+import { html, mount, $, toast, confirmBox, fmtNum, signed, raw, vibrate, copyText } from '../dom.js';
 import { state, nick, matchById, refreshMatch, subscribe, post, get, loadData } from '../state.js';
 import { subscribeRoom, unsubscribeRoom, onWs, act as wsAct, connect, wsState } from '../ws.js';
 import { computeMatch } from '/shared/scoring.js';
 import { SUIT_INFO, DEFAULT_SETTINGS } from '/shared/rules.js';
-import { icon, dot, colorOf, card, cardName, suitSym, teamDots } from '../ui.js';
+import { icon, dot, colorOf, card, cardName, suitSym, teamDots, teamDot } from '../ui.js';
+import qrcode from '/vendor/qrcode.js';
 
 const STATUS = { lobby: 'Poczekalnia', playing: 'Trwa rozdanie', between: 'Przerwa między rozdaniami', finished: 'Mecz zakończony', closed: 'Pokój zamknięty' };
 
@@ -34,7 +35,7 @@ export function lobby({ el, go }) {
             <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania tromfu</label>
             <label class="check"><input type="checkbox" name="meldOnFirstTrick" ${s.meldOnFirstTrick ? raw('checked') : ''}> Meldunek dozwolony już w pierwszej lewie</label>
             <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim – same punkty, tromf bez zmian)</label>
-            <p class="hint">Licytację otwiera obowiązkowo gracz po lewej rozdającego (${s.minBid}). Licytuje się co ${s.bidStep}, bez ograniczeń wynikających z meldunków.</p>
+            <p class="hint">Licytację otwiera obowiązkowo gracz po lewej rozdającego (${s.minBid}). Licytuje się zawsze o ${s.bidStep} w górę (bez skakania), bez ograniczeń wynikających z meldunków.</p>
           </details>
           <button class="btn gold wide" type="submit">Utwórz pokój</button>
         </form>
@@ -42,7 +43,7 @@ export function lobby({ el, go }) {
     </div>
     ${activeMine.length ? html`<section class="card"><h3>Kontynuuj swój mecz online</h3>
       <p class="muted small">Wynik, drużyny i historia zostają – zaczyna się nowe cyfrowe rozdanie.</p>
-      ${activeMine.map((m) => { const c = computeMatch(m); return html`<button type="button" class="game-card" data-act="continue" data-id="${m.id}"><div class="gc-main"><div class="gc-sides">${c.teams.map((t, i) => html`<span>${teamDots(t)} ${t.map(nick).join(' & ')} <b class="num">${fmtNum(c.scores[i])}</b></span>`)}</div><div class="gc-meta">${m.rounds.length} rozdań</div></div><span class="chev">${icon('wifi')}</span></button>`; })}
+      ${activeMine.map((m) => { const c = computeMatch(m); return html`<button type="button" class="game-card" data-act="continue" data-id="${m.id}"><div class="gc-main"><div class="gc-sides">${c.teams.map((t, i) => html`<span>${teamDots(t, i)} ${t.map(nick).join(' & ')} <b class="num">${fmtNum(c.scores[i])}</b></span>`)}</div><div class="gc-meta">${m.rounds.length} rozdań</div></div><span class="chev">${icon('wifi')}</span></button>`; })}
     </section>` : ''}
     ${(state.rooms || []).length ? html`<section class="card"><h3>Twoje pokoje</h3>${state.rooms.map((r) => html`<a class="game-card" href="#/room/${encodeURIComponent(r.id)}"><div class="gc-main"><div class="gc-sides"><span>Kod <b class="mono">${r.code}</b></span></div><div class="gc-meta">${STATUS[r.status]}</div></div><span class="chev">${icon('chevronRight')}</span></a>`)}</section>` : ''}`);
   const onSubmit = async (e) => {
@@ -74,6 +75,29 @@ export function lobby({ el, go }) {
   el.addEventListener('click', onClick);
 }
 
+// Link zaproszenia (#/join/KOD): zalogowany gracz od razu wchodzi do pokoju.
+export async function joinLink({ el, params, go }) {
+  mount(el, html`<div class="loading"><span class="spinner"></span>Dołączanie do pokoju ${params.code}…</div>`);
+  try {
+    const { room } = await post('/api/rooms/join', { code: params.code });
+    go('/room/' + encodeURIComponent(room.id), { replace: true });
+  } catch (ex) {
+    mount(el, html`<div class="card empty">${ex.network ? 'Gra online wymaga internetu' : ex.message}<br><a class="btn" href="#/online">Pokoje</a></div>`);
+  }
+}
+
+const inviteLink = (code) => `${location.origin}/#/join/${encodeURIComponent(code)}`;
+// Kod QR jako SVG (czarne moduły na białym tle – czytelny dla każdego aparatu).
+function qrSvg(text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount(), m = 4, size = n + m * 2;
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + m} ${r + m}h1v1h-1z`;
+  return raw(`<svg class="qr" viewBox="0 0 ${size} ${size}" role="img" aria-label="Kod QR z linkiem do pokoju" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`);
+}
+
 export function room({ el, params, go, setCta, setBar }) {
   const roomId = params.id;
   let view = null;
@@ -83,6 +107,7 @@ export function room({ el, params, go, setCta, setBar }) {
   let busy = false;
   let flashTrick = null;
   let flashTimer = null;
+  let cardsHidden = localStorage.getItem('tys2:hideCards') === '1';
   let giveDraft = {}; // musik: komu którą kartę (seat → karta), zatwierdzane jednym przyciskiem
 
   connect();
@@ -134,7 +159,12 @@ export function room({ el, params, go, setCta, setBar }) {
       <section class="card code-card">
         <div class="muted small">Kod zaproszenia</div>
         <div class="room-code mono" aria-label="Kod ${view.code.split('').join(' ')}">${view.code}</div>
-        <button type="button" class="btn sm" data-act="copy">${icon('copy')}Kopiuj zaproszenie</button>
+        <div class="row wrap center code-btns">
+          <button type="button" class="btn sm" data-act="copy-code">${icon('copy')}Kopiuj kod</button>
+          <button type="button" class="btn sm" data-act="copy-link">${icon('copy')}Kopiuj link</button>
+          ${navigator.share ? html`<button type="button" class="btn sm" data-act="share">Udostępnij</button>` : ''}
+        </div>
+        <details class="qr-box"><summary>Pokaż kod QR</summary>${qrSvg(inviteLink(view.code))}<div class="muted small">Zeskanuj aparatem – zalogowany gracz od razu wejdzie do pokoju.</div></details>
       </section>
       ${view.reservedSeats ? html`<p class="hint">Miejsca są przypisane z meczu – każdy gracz siada automatycznie po dołączeniu kodem.</p>` : html`<p class="hint">Partnerzy siedzą naprzeciwko: drużyna A to miejsca 1 i 3, drużyna B – 2 i 4.</p>`}
       <div class="lobby-seats">${[0, 1, 2, 3].map((s) => {
@@ -142,13 +172,13 @@ export function room({ el, params, go, setCta, setBar }) {
         const reserved = view.reservedSeats ? view.reservedSeats[s] : null;
         return html`<div class="lseat team-${s % 2 ? 'b' : 'a'} ${u === state.me.id ? 'me' : ''}">
           <div class="ls-h">Miejsce ${s + 1} · drużyna ${s % 2 ? 'B' : 'A'}</div>
-          ${u ? html`<div class="ls-u">${dot(u)}<b>${nick(u)}</b>${online.includes(u) ? html`<span class="online-dot" title="online"></span>` : html`<span class="muted small">offline</span>`}</div>
+          ${u ? html`<div class="ls-u">${teamDot(s % 2)}<b>${nick(u)}</b>${online.includes(u) ? html`<span class="online-dot" title="online"></span>` : html`<span class="muted small">offline</span>`}</div>
               <div class="ls-r ${view.ready[s] ? 'ok' : ''}">${view.ready[s] ? html`${icon('check')}gotowy` : 'czeka'}</div>`
-            : reserved ? html`<div class="ls-u muted">${dot(reserved)}${nick(reserved)} – jeszcze nie dołączył</div>`
+            : reserved ? html`<div class="ls-u muted">${teamDot(s % 2)}${nick(reserved)} – jeszcze nie dołączył</div>`
               : html`<button type="button" class="btn sm" data-act="sit" data-seat="${s}">Usiądź tutaj</button>`}
         </div>`;
       })}</div>
-      <section class="card"><h3>W pokoju</h3><div class="members">${view.members.map((u) => html`<span class="member">${dot(u)}${nick(u)}${online.includes(u) ? html`<span class="online-dot"></span>` : ''}</span>`)}</div></section>
+      <section class="card"><h3>W pokoju</h3><div class="members">${view.members.map((u) => html`<span class="member">${view.seats.includes(u) ? teamDot(view.seats.indexOf(u) % 2) : dot(u)}${nick(u)}${online.includes(u) ? html`<span class="online-dot"></span>` : ''}</span>`)}</div></section>
       <div class="row wrap">
         ${meSeated && !view.reservedSeats ? html`<button type="button" class="btn sm" data-act="stand">Wstań</button>` : ''}
         <button type="button" class="btn sm" data-act="leave">Opuść pokój</button>
@@ -173,7 +203,7 @@ export function room({ el, params, go, setCta, setBar }) {
     const bidH = h && h.phase === 'bidding' ? [...h.bidding.history].reverse().find((x) => x.seat === seat) : null;
     const melds = h ? h.melds.filter((x) => x.seat === seat) : [];
     return html`<div class="seat-box ${pos} team-${seat % 2 ? 'b' : 'a'} ${turn ? 'turn' : ''} ${u === state.me.id ? 'me' : ''}">
-      <div class="sb-name">${dot(u)}<b>${nick(u)}</b>${h && h.dealerSeat === seat ? html`<span class="chipd" title="rozdaje">R</span>` : ''}${online.includes(u) ? '' : html`<span class="badge warn" title="rozłączony">offline</span>`}</div>
+      <div class="sb-name">${teamDot(seat % 2)}<b>${nick(u)}</b>${h && h.dealerSeat === seat ? html`<span class="chipd" title="rozdaje">R</span>` : ''}${online.includes(u) ? '' : html`<span class="badge warn" title="rozłączony">offline</span>`}</div>
       <div class="sb-meta">${h ? html`${pos !== 'bottom' ? html`<span class="backs">${Array.from({ length: h.handCounts[seat] }, () => card(null, { back: true, small: true }))}</span>` : ''}
         ${pos !== 'bottom' ? html`<span class="cnt" title="kart w ręce">${h.handCounts[seat]} kart</span>` : ''}<span class="muted small">lewy: ${h.tricksWon[seat]}</span>` : ''}
         ${bidH ? html`<span class="bubble ${bidH.type}">${bidH.type === 'pass' ? 'pas' : bidH.value}</span>` : ''}
@@ -194,7 +224,7 @@ export function room({ el, params, go, setCta, setBar }) {
     mount(el, html`
       <div class="game">
         <div class="gbar">
-          ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''}"><span class="gs-n">${teamDots(teamsTxt[t])}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
+          ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''}"><span class="gs-n">${teamDots(teamsTxt[t], t)}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
           <div class="ginfo">
             ${contract ? html`<span class="gi">kontrakt <b>${contract.value}</b> · ${nick(view.seats[contract.seat])}</span>` : h && h.phase === 'bidding' ? html`<span class="gi">licytacja: <b>${h.bidding.highest}</b> · ${nick(view.seats[h.bidding.highestSeat])}</span>` : ''}
             <span class="gi">tromf ${h && h.trump ? suitSym(h.trump) : html`<span class="muted">brak</span>`}</span>
@@ -224,6 +254,9 @@ export function room({ el, params, go, setCta, setBar }) {
     const cards = h.hand.filter((c) => !assigned.includes(c));
     const musik = h.musikCards || [];
     const recv = h.received && h.tricksCount === 0 ? h.received : null;
+    // Zakryte karty (gdy ktoś siedzi obok i mógłby podejrzeć) – tylko na tym urządzeniu.
+    const toggle = html`<button type="button" class="hide-toggle btn sm" data-act="hide-cards" aria-pressed="${cardsHidden}">${cardsHidden ? 'Pokaż karty' : 'Zakryj karty'}</button>`;
+    if (cardsHidden) return html`<div class="hand hidden-hand" role="group" aria-label="Twoje karty – zakryte" style="--n:${cards.length}">${cards.map(() => card(null, { back: true }))}</div>${toggle}${myTurn ? html`<div class="muted small center">Twój ruch – odkryj karty, żeby zagrać.</div>` : ''}`;
     return html`${recv ? html`<div class="recv-note">${nick(view.seats[recv.from])} dał Ci: ${card(recv.card, { small: true, span: true })} <b>${cardName(recv.card)}</b></div>` : ''}
       <div class="hand" role="group" aria-label="Twoje karty" style="--n:${cards.length}">${cards.map((c) => card(c, {
         act: 'card',
@@ -233,18 +266,16 @@ export function room({ el, params, go, setCta, setBar }) {
         meld: h.meldable.includes(c),
         tag: giving && musik.includes(c) ? 'musik' : recv && recv.card === c ? 'nowa' : '',
         tagCls: recv && recv.card === c ? 'new' : '',
-      }))}</div>`;
+      }))}</div>${toggle}`;
   }
 
   function drawControls(h, myTurn) {
     if (!myTurn) return html`<div class="controls muted small">${h.phase === 'bidding' ? html`Historia licytacji: ${h.bidding.history.map((x) => html`<span class="hb">${nick(view.seats[x.seat])} ${x.type === 'pass' ? 'pas' : x.value}${x.forced ? ' (obowiązkowe)' : ''}</span>`)}` : ''}</div>`;
     if (h.phase === 'bidding') {
-      const step = h.settings.bidStep;
-      const opts = [];
-      for (let v = h.bidding.highest + step; v <= Math.min(h.settings.maxBid, h.bidding.highest + step * 12); v += step) opts.push(v);
+      const next = h.bidding.highest + h.settings.bidStep;
       return html`<div class="controls bidding">
         <div class="muted small">Najwyższa: <b>${h.bidding.highest}</b> (${nick(view.seats[h.bidding.highestSeat])})</div>
-        <div class="bid-opts">${opts.map((v) => html`<button type="button" class="chip" data-act="bid" data-v="${v}">${v}</button>`)}</div>
+        ${next <= h.settings.maxBid ? html`<button type="button" class="btn-gold wide" data-act="bid" data-v="${next}">Licytuj ${next} <span class="muted">(+${h.settings.bidStep})</span></button>` : ''}
         <button type="button" class="btn danger wide" data-act="pass">Pas</button>
       </div>`;
     }
@@ -255,7 +286,7 @@ export function room({ el, params, go, setCta, setBar }) {
       return html`<div class="controls giving">
         <div class="give-help">${selected ? html`Komu dać ${card(selected, { small: true, span: true })} <b>${cardName(selected)}</b>? Kliknij gracza.` : done ? 'Sprawdź i zatwierdź. Kliknij kartę gracza, żeby ją cofnąć.' : html`<b>1.</b> Wybierz kartę z ręki &nbsp; <b>2.</b> Kliknij gracza`}</div>
         <div class="give-slots">${left.map((s) => html`<button type="button" class="gslot ${isPartner(s) ? 'partner' : 'opp'} ${selected ? 'target' : ''} ${giveDraft[s] ? 'filled' : ''}" data-act="slot" data-to="${s}">
-          <span class="gsl-who">${dot(view.seats[s])}<b>${nick(view.seats[s])}</b></span>
+          <span class="gsl-who">${teamDot(s % 2)}<b>${nick(view.seats[s])}</b></span>
           <span class="gsl-role">${isPartner(s) ? 'partner' : 'przeciwnik'} · ${POS_TXT[rel(s)]}</span>
           <span class="gsl-card">${giveDraft[s] ? card(giveDraft[s], { span: true }) : html`<span class="gsl-empty">?</span>`}</span>
         </button>`)}</div>
@@ -287,7 +318,7 @@ export function room({ el, params, go, setCta, setBar }) {
       <h3>${view.status === 'finished' ? html`${icon('crown')} Wygrywają ${teams[lh.winner].map(nick).join(' & ')}!` : `Rozdanie ${lh.handNo} zakończone`}</h3>
       <p>Kontrakt <b>${lh.contract.value}</b> – ${nick(view.seats[lh.contract.seat])}: ${lh.made ? html`<span class="good">ugrany</span>` : html`<span class="bad">nieugrany</span>`}</p>
       <div class="table-wrap"><table class="tbl"><thead><tr><th class="l">Drużyna</th><th>Karty</th><th>Meldunki</th><th>Zmiana</th><th>Wynik</th></tr></thead>
-      <tbody>${[0, 1].map((t) => html`<tr><td class="l">${teamDots(teams[t])} ${teams[t].map(nick).join(' & ')}</td><td>${lh.cardPoints[t]}</td><td>${meldLost[t] ? html`<s title="bez punktów z kart meldunek się nie liczy">${meldTeam[t]}</s>` : meldTeam[t]}</td><td class="${lh.deltas[t] > 0 ? 'good' : lh.deltas[t] < 0 ? 'bad' : ''}">${signed(lh.deltas[t])}</td><td><b>${fmtNum(lh.scores[t])}</b></td></tr>`)}</tbody></table></div>
+      <tbody>${[0, 1].map((t) => html`<tr><td class="l">${teamDots(teams[t], t)} ${teams[t].map(nick).join(' & ')}</td><td>${lh.cardPoints[t]}</td><td>${meldLost[t] ? html`<s title="bez punktów z kart meldunek się nie liczy">${meldTeam[t]}</s>` : meldTeam[t]}</td><td class="${lh.deltas[t] > 0 ? 'good' : lh.deltas[t] < 0 ? 'bad' : ''}">${signed(lh.deltas[t])}</td><td><b>${fmtNum(lh.scores[t])}</b></td></tr>`)}</tbody></table></div>
       ${meldLost.some(Boolean) ? html`<p class="muted small">Przekreślony meldunek przepadł – drużyna nie zdobyła żadnych punktów z kart.</p>` : ''}
       ${view.status === 'between' ? html`<p class="muted small">Gotowi: ${view.seats.filter((_, i) => view.ready[i]).map(nick).join(', ') || 'nikt'}</p>` : ''}
     </section>`;
@@ -319,11 +350,15 @@ export function room({ el, params, go, setCta, setBar }) {
         if (await confirmBox('Unieważnić rozdanie?', 'Rozdanie zostanie przerwane bez zapisu punktów. Używaj tylko, gdy gra nie może być kontynuowana.', 'Unieważnij', 'danger')) send({ type: 'abort-hand' });
         break;
       case 'match': go('/match/' + encodeURIComponent(view.matchId) + '/details'); break;
-      case 'copy': {
-        const text = `Zagraj w Tysiąca: ${location.origin}/#/online – kod ${view.code}`;
-        try { await navigator.clipboard.writeText(text); toast('Skopiowano zaproszenie'); } catch { toast('Kod: ' + view.code); }
+      case 'copy-code': toast((await copyText(view.code)) ? `Skopiowano kod ${view.code}` : `Kod: ${view.code}`); break;
+      case 'copy-link': {
+        const link = inviteLink(view.code);
+        toast((await copyText(link)) ? 'Skopiowano link do pokoju' : `Link: ${link}`);
         break;
       }
+      case 'share':
+        try { await navigator.share({ title: 'Tysiąc – zaproszenie', text: `Zagraj w Tysiąca – kod ${view.code}`, url: inviteLink(view.code) }); } catch { /* anulowano */ }
+        break;
       case 'bid': send({ type: 'bid', value: Number(a.dataset.v) }); break;
       case 'pass': send({ type: 'pass' }); break;
       case 'card': {
@@ -339,6 +374,12 @@ export function room({ el, params, go, setCta, setBar }) {
         draw();
         break;
       }
+      case 'hide-cards':
+        cardsHidden = !cardsHidden;
+        localStorage.setItem('tys2:hideCards', cardsHidden ? '1' : '0');
+        selected = null;
+        draw();
+        break;
       case 'play': { const c = selected; selected = null; send({ type: 'play', card: c }); break; }
       case 'slot': {
         const to = Number(a.dataset.to);

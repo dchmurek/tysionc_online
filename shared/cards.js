@@ -33,6 +33,16 @@ export function sortHand(hand, trump) {
   return hand.slice().sort((a, b) => order.indexOf(cardSuit(a)) - order.indexOf(cardSuit(b)) || rankIndex(a) - rankIndex(b));
 }
 
+// Kolejność rozdawania 24 kart: numer miejsca albo 'm' (musik).
+export function dealSequence(dealerSeat) {
+  const seq = [];
+  for (let r = 0; r < DEAL_SIZE; r++) {
+    for (let k = 0; k < PLAYERS; k++) seq.push((dealerSeat + k) % PLAYERS);
+    if (r < MUSIK_SIZE) seq.push('m');
+  }
+  return seq;
+}
+
 // Nowe rozdanie: po 5 kart każdemu, 4 karty musika na środek (zakryte).
 // Pierwszy po rozdającym ma obowiązkowe otwarcie licytacji (minimalna licytacja).
 // Zwycięzca licytacji bierze musik i oddaje po jednej (dowolnej) karcie każdemu z pozostałych graczy.
@@ -42,10 +52,11 @@ export function createHand({ dealerSeat, settings, randomInt, deck }) {
   const cards = deck ? deck.slice() : shuffle(fullDeck(), randomInt);
   if (cards.length !== PLAYERS * DEAL_SIZE + MUSIK_SIZE || new Set(cards).size !== cards.length) throw new RuleError('Zła talia');
   const hands = [[], [], [], []];
-  // Rozdawanie zaczyna się od gracza po lewej rozdającego; ostatnie 4 karty to musik.
-  const dealt = PLAYERS * DEAL_SIZE;
-  for (let i = 0; i < dealt; i++) hands[(dealerSeat + 1 + i) % PLAYERS].push(cards[i]);
-  const musik = cards.slice(dealt);
+  const musik = [];
+  // Rozdawanie po jednej karcie: rozdający sobie, potem po lewej, naprzeciwko, po prawej, do musika – i od nowa
+  // (musik dostaje kartę w każdej kolejce, dopóki nie ma 4). Kolejność zapisana w dealOrder (do animacji).
+  const dealOrder = dealSequence(dealerSeat);
+  dealOrder.forEach((to, i) => (to === 'm' ? musik : hands[to]).push(cards[i]));
   const opener = nextSeat(dealerSeat);
   const state = {
     phase: 'bidding',
@@ -200,8 +211,9 @@ export function applyAction(state, seat, action) {
     if (action.type === 'bid') {
       const v = action.value;
       if (!Number.isInteger(v) || v % S.bidStep !== 0) throw new RuleError('Zła wartość licytacji');
-      if (v < b.highest + S.bidStep) throw new RuleError(`Licytacja musi wynosić co najmniej ${b.highest + S.bidStep}`);
       if (v > S.maxBid) throw new RuleError(`Maksymalna licytacja to ${S.maxBid}`);
+      // Podbija się zawsze dokładnie o jeden krok (co 10) – bez skakania.
+      if (v !== b.highest + S.bidStep) throw new RuleError(`Licytuje się co ${S.bidStep} – teraz tylko ${b.highest + S.bidStep}`);
       b.highest = v;
       b.highestSeat = seat;
       b.history.push({ seat, type: 'bid', value: v });

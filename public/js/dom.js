@@ -91,3 +91,22 @@ export function plural(n, one, few, many) {
 }
 export const vibrate = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* brak */ } };
 export const uid = (p = '') => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+
+// Kopiowanie do schowka. navigator.clipboard działa tylko na https/localhost – na zwykłym http
+// (np. adres w sieci domowej) używamy starego sposobu przez ukryte pole tekstowe.
+export async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+  } catch { /* spróbuj starego sposobu */ }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return ok;
+}

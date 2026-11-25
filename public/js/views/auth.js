@@ -40,7 +40,10 @@ async function finish(r, go) {
   state.me = r.user;
   localStorage.setItem('tys2:lastUser', JSON.stringify(r.user));
   await afterLogin();
-  go('/', { replace: true });
+  // np. link zaproszenia otwarty przed zalogowaniem – po zalogowaniu wracamy do niego
+  const next = sessionStorage.getItem('tys2:next');
+  sessionStorage.removeItem('tys2:next');
+  go(next && next.startsWith('/') ? next : '/', { replace: true });
 }
 
 export function login({ el, go }) {
