@@ -126,7 +126,7 @@ export function legalCards(state, seat) {
   const best = played[trickWinnerIndex(played, trump)];
   const ofLed = hand.filter((c) => cardSuit(c) === led);
   if (ofLed.length) {
-    // Do koloru; przebić trzeba tylko wtedy, gdy lewę wygrywa karta tego koloru (a nie atut).
+    // Do koloru; przebić trzeba tylko wtedy, gdy lewę wygrywa karta tego koloru (a nie tromf).
     if (S.mustBeat && cardSuit(best) === led) {
       const higher = ofLed.filter((c) => beats(c, best, trump));
       if (higher.length) return higher;
@@ -159,7 +159,7 @@ export function canMeld(state, seat, card) {
 }
 
 // „Meldunek na kimś”: poprzedni gracz w lewie zagrał damę, a ja dokładam do niej króla tego samego koloru.
-// Karta musi być dozwolona (obowiązek koloru/przebicia/atutu działa normalnie). Zwraca miejsce gracza z damą albo -1.
+// Karta musi być dozwolona (obowiązek koloru/przebicia/tromfu działa normalnie). Zwraca miejsce gracza z damą albo -1.
 export function meldOnSeat(state, seat, card) {
   if (!state.settings.meldOnPlayed) return -1;
   if (state.phase !== 'playing' || state.turn !== seat || !state.trick.cards.length) return -1;
@@ -260,17 +260,18 @@ export function applyAction(state, seat, action) {
   const card = action.card;
   if (!isCard(card) || !state.hands[seat].includes(card)) throw new RuleError('Nie masz tej karty');
   const legal = legalCards(state, seat);
-  if (!legal.includes(card)) throw new RuleError('Tej karty nie można teraz zagrać (obowiązek koloru, przebicia lub atutu)');
+  if (!legal.includes(card)) throw new RuleError('Tej karty nie można teraz zagrać (obowiązek koloru, przebicia lub tromfu)');
   let meld = null;
   // Meldunek zgłaszany automatycznie: kto wychodzi królem lub damą z pary (gdy meldować wolno), melduje od razu.
-  // Tak samo „na kimś”: król dołożony na damę tego koloru zagraną przez poprzedniego gracza.
+  // Tak samo „na kimś”: król dołożony na damę tego koloru zagraną przez poprzedniego gracza – ale wtedy
+  // są tylko punkty za meldunek, tromf się NIE zmienia (tromf ustala wyłącznie meldunek z ręki).
   const onSeat = meldOnSeat(state, seat, card);
   if (canMeld(state, seat, card) || onSeat >= 0) {
     const suit = cardSuit(card);
     meld = { seat, team: teamOfSeat(seat), suit, value: MELD_VALUES[suit], trick: state.tricks.length + 1 };
-    if (onSeat >= 0) meld.on = onSeat;
     state.melds.push(meld);
-    state.trump = suit;
+    if (onSeat >= 0) meld.on = onSeat;
+    else state.trump = suit;
   }
   state.hands[seat] = state.hands[seat].filter((c) => c !== card);
   state.trick.cards.push({ seat, card });

@@ -5,10 +5,10 @@
 - 4 graczy, 2 drużyny; partnerzy naprzeciwko (miejsca 1+3 i 2+4).
 - Talia 24 kart (A, 10, K, Q, J, 9 w czterech kolorach), wartości 11/10/4/3/2/0 = 120 pkt.
 - **Musik**: każdy dostaje po 5 kart, 4 karty leżą zakryte na środku. Zwycięzca licytacji zbiera musik i oddaje po jednej **dowolnej** karcie (nie tylko z musika) każdemu z pozostałych graczy – potem każdy ma 6 kart. Oddaną kartę widzi tylko jej odbiorca.
-- Meldunki: kier 100, karo 80, **pik 60, trefl 40**; wymagają króla i damy tego samego koloru; meldunek ustala atut; liczone drużynowo.
+- Meldunki: kier 100, karo 80, **pik 60, trefl 40**; wymagają króla i damy tego samego koloru; meldunek **z ręki** ustala tromf; liczone drużynowo.
 - **Meldunek liczy się tylko, gdy drużyna zdobyła jakiekolwiek punkty z kart** w tym rozdaniu (> 0). Bez punktów z kart meldunek przepada – w wyniku online jest przekreślony, w liczniku offline pojawia się ostrzeżenie. Statystyki nadal pokazują, kto meldował. Rozdań ze starej aplikacji to nie zmienia.
-- Online meldunek zgłasza się **automatycznie**: kto wychodzi królem lub damą z pary (gdy wolno meldować), melduje od razu – nie da się przypadkiem zagrać bez meldunku.
-- **Meldunek na kimś**: gdy gracz zagra damę, a następny gracz dołoży do niej króla tego samego koloru, ten drugi melduje (wartość koloru, liczona jego drużynie) i kolor staje się atutem od razu – także w bieżącej lewie. Król musi być dozwolony zwykłymi zasadami (kolor/przebicie/atut); dama musi być zagrana bezpośrednio przed królem. Ten sam limit co przy zwykłym meldunku: domyślnie od drugiej lewy.
+- Online meldunek zgłasza się **automatycznie**: kto wychodzi królem lub damą z pary (gdy wolno meldować), melduje od razu – nie da się przypadkiem zagrać bez meldunku. Podwójne kliknięcie karty z pary też melduje i zagrywa. Gdy król/dama z pary nie może teraz meldować (np. pierwsza lewa albo nie wychodzisz), zagranie wymaga przycisku z dopiskiem „bez meldunku”.
+- **Meldunek na kimś**: gdy gracz zagra damę, a następny gracz dołoży do niej króla tego samego koloru, ten drugi melduje (wartość koloru, liczona jego drużynie), ale **tromf się nie zmienia** – król nie bije wszystkiego, lewa rozstrzyga się po staremu; są tylko punkty za meldunek (jak każdy meldunek – gdy drużyna ma jakieś punkty z kart). Król musi być dozwolony zwykłymi zasadami (kolor/przebicie/tromf); dama musi być zagrana bezpośrednio przed królem. Ten sam limit co przy zwykłym meldunku: domyślnie od drugiej lewy.
 - Musik online: grający najpierw **przydziela** karty (karta → gracz, z oznaczeniem partner/przeciwnik), może je zmieniać, a potem **zatwierdza wszystkie trzy jednym przyciskiem**. Karty z musika są w ręce oznaczone „musik”, a odbiorca widzi, jaką kartę i od kogo dostał.
 - Licytacja od 100, przebijanie co najmniej o 10. **Brak ograniczeń wynikających z posiadanych meldunków.**
 - Ugrany kontrakt → drużyna dostaje **faktycznie zdobyte punkty** (karty + meldunki drużyny), zaokrąglone do 10. Kontrakt sprawdzany **po zaokrągleniu** (grał 160, ma 158 → 160 → ugrany).
@@ -28,8 +28,8 @@
 | `target` | 100–10000 | 1000 | |
 | `passiveCap` | | 990 | |
 | `minBid`, `bidStep`, `maxBid` | | 100, 10, 400 | 400 = 120 + wszystkie meldunki (teoretyczne maksimum) – nie jest to limit z meldunków gracza |
-| `mustBeat` | tak/nie | tak | obowiązek przebicia: do koloru wyższą kartą, a bez koloru – atutem i nadbicie atutu |
-| `mustTrump` | tak/nie | tak | brak koloru → obowiązek dania atutu |
+| `mustBeat` | tak/nie | tak | obowiązek przebicia: do koloru wyższą kartą, a bez koloru – tromfem i nadbicie tromfu |
+| `mustTrump` | tak/nie | tak | brak koloru → obowiązek dania tromfu |
 | `meldOnFirstTrick` | tak/nie | nie | meldować można wychodząc, od drugiej lewy (po wzięciu lewy) |
 | `meldOnPlayed` | tak/nie | tak | **ustalenie właściciela**: meldunek na kimś – król dołożony na damę zagraną tuż przed nim |
 
@@ -42,8 +42,8 @@
 - Musik leży **zakryty** i nie jest nikomu pokazywany (potwierdzone).
 - Pierwszą lewę wychodzi zwycięzca licytacji; kolejne – zwycięzca poprzedniej lewy.
 - Na stole widać tylko bieżącą lewę (ukończona zostaje ok. 1,5 s, żeby było widać ostatnią kartę); brak historii zagranych kart.
-- Obowiązek przebicia dotyczy karty wygrywającej lewę w danej chwili (jeśli lewę wygrywa atut, dokładający do koloru nie musi przebijać).
-- **Przebijać trzeba zawsze, gdy się da – także gdy lewę bierze partner** (potwierdzone). Dotyczy też dawania i nadbijania atutu.
+- Obowiązek przebicia dotyczy karty wygrywającej lewę w danej chwili (jeśli lewę wygrywa tromf, dokładający do koloru nie musi przebijać).
+- **Przebijać trzeba zawsze, gdy się da – także gdy lewę bierze partner** (potwierdzone). Dotyczy też dawania i nadbijania tromfu.
 - Remis w wyniku nie jest możliwy (wygrywa tylko drużyna licytująca).
 
 ## Otwarte pytania (nie zgadywałem – wymagana decyzja)

@@ -30,10 +30,10 @@ export function lobby({ el, go }) {
             <label class="field"><span>Zaokrąglanie</span><select name="rounding"><option value="nearest10" ${s.rounding === 'nearest10' ? raw('selected') : ''}>do najbliższej 10</option><option value="down10" ${s.rounding === 'down10' ? raw('selected') : ''}>w dół do 10</option><option value="exact" ${s.rounding === 'exact' ? raw('selected') : ''}>bez zaokrąglania</option></select></label>
           </div>
           <details class="rules"><summary>Zasady rozgrywki</summary>
-            <label class="check"><input type="checkbox" name="mustBeat" ${s.mustBeat ? raw('checked') : ''}> Obowiązek przebicia (do koloru i atutem)</label>
-            <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania atutu</label>
+            <label class="check"><input type="checkbox" name="mustBeat" ${s.mustBeat ? raw('checked') : ''}> Obowiązek przebicia (do koloru i tromfem)</label>
+            <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania tromfu</label>
             <label class="check"><input type="checkbox" name="meldOnFirstTrick" ${s.meldOnFirstTrick ? raw('checked') : ''}> Meldunek dozwolony już w pierwszej lewie</label>
-            <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim)</label>
+            <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim – same punkty, tromf bez zmian)</label>
             <p class="hint">Licytację otwiera obowiązkowo gracz po lewej rozdającego (${s.minBid}). Licytuje się co ${s.bidStep}, bez ograniczeń wynikających z meldunków.</p>
           </details>
           <button class="btn gold wide" type="submit">Utwórz pokój</button>
@@ -109,6 +109,8 @@ export function room({ el, params, go, setCta, setBar }) {
   };
   const POS_TXT = { left: 'po lewej', top: 'naprzeciwko', right: 'po prawej' };
   const isPartner = (seat) => view.mySeat >= 0 && seat !== view.mySeat && seat % 2 === view.mySeat % 2;
+  // Król/dama z pary w ręce, ale meldować teraz nie można (np. 1. lewa albo nie wychodzisz) – zagranie wymaga potwierdzenia.
+  const pairNoMeld = (h, c) => (c[0] === 'K' || c[0] === 'Q') && h.hand.includes((c[0] === 'K' ? 'Q' : 'K') + c[1]) && !h.meldable.includes(c);
   // Na kogo melduje król (poprzedni gracz zagrał damę tego koloru) – albo -1.
   const meldOnOf = (h, c) => {
     const last = h.trick && h.trick.cards.length ? h.trick.cards[h.trick.cards.length - 1] : null;
@@ -195,7 +197,7 @@ export function room({ el, params, go, setCta, setBar }) {
           ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''}"><span class="gs-n">${teamDots(teamsTxt[t])}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
           <div class="ginfo">
             ${contract ? html`<span class="gi">kontrakt <b>${contract.value}</b> · ${nick(view.seats[contract.seat])}</span>` : h && h.phase === 'bidding' ? html`<span class="gi">licytacja: <b>${h.bidding.highest}</b> · ${nick(view.seats[h.bidding.highestSeat])}</span>` : ''}
-            <span class="gi">atut ${h && h.trump ? suitSym(h.trump) : html`<span class="muted">brak</span>`}</span>
+            <span class="gi">tromf ${h && h.trump ? suitSym(h.trump) : html`<span class="muted">brak</span>`}</span>
             <span class="gi">rozdanie ${view.handNo}</span>
           </div>
         </div>
@@ -264,11 +266,12 @@ export function room({ el, params, go, setCta, setBar }) {
       const meld = h.meldable.includes(selected);
       const s = selected[1];
       return html`<div class="controls play">
-        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld}${meldOnOf(h, selected) >= 0 ? ` na ${nick(view.seats[meldOnOf(h, selected)])}` : ''} i zagraj` : 'Zagraj'} ${card(selected, { small: true, span: true })}</button>
+        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld}${meldOnOf(h, selected) >= 0 ? ` na ${nick(view.seats[meldOnOf(h, selected)])}` : ''} i zagraj` : pairNoMeld(h, selected) ? 'Zagraj bez meldunku' : 'Zagraj'} ${card(selected, { small: true, span: true })}</button>
+        ${pairNoMeld(h, selected) ? html`<div class="muted small">${h.trick && h.trick.cards.length ? 'Meldować można tylko wychodząc (albo królem na damę zagraną tuż przed Tobą).' : 'W pierwszej lewie nie można meldować.'}</div>` : ''}
       </div>`;
     }
     const onK = h.meldable.find((c) => meldOnOf(h, c) >= 0);
-    return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld}).` : h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
+    return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld} pkt, tromf bez zmian).` : h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
   }
 
   function drawResult() {
@@ -328,8 +331,10 @@ export function room({ el, params, go, setCta, setBar }) {
         if (!h || h.turn !== view.mySeat) return;
         if (h.phase === 'giving') { selected = selected === c ? null : c; draw(); return; }
         if (h.phase !== 'playing') return;
-        if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub atutu'); return; }
-        if (selected === c && !h.meldable.includes(c)) { selected = null; send({ type: 'play', card: c }); return; }
+        if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub tromfu'); return; }
+        // Drugie kliknięcie tej samej karty zagrywa ją (meldunek zgłasza się sam, jeśli przysługuje).
+        // Wyjątek: król/dama z pary, gdy meldować teraz nie można – wtedy tylko przyciskiem „Zagraj bez meldunku”.
+        if (selected === c && !pairNoMeld(h, c)) { selected = null; send({ type: 'play', card: c }); return; }
         selected = c;
         draw();
         break;

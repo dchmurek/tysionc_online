@@ -282,7 +282,7 @@ const ON_HANDS = [
   ['TD', 'KD', 'QD', 'JD', '9D', '9C'],
 ];
 
-test('meldunek na kimś: król na damę poprzedniego gracza melduje i zmienia atut', () => {
+test('meldunek na kimś: król na damę poprzedniego gracza daje punkty, ale nie zmienia tromfu', () => {
   const h = playingState(ON_HANDS, { settings: { meldOnFirstTrick: true } });
   applyAction(h, 0, { type: 'play', card: 'AS' });
   applyAction(h, 1, { type: 'play', card: 'QH' }); // brak pika – „ucieka” damą
@@ -292,9 +292,9 @@ test('meldunek na kimś: król na damę poprzedniego gracza melduje i zmienia at
   assert.deepEqual(v.meldable, ['KH']);
   applyAction(h, 2, { type: 'play', card: 'KH' });
   assert.deepEqual(h.melds[0], { seat: 2, team: 0, suit: 'H', value: 100, trick: 1, on: 1 });
-  assert.equal(h.trump, 'H');
+  assert.equal(h.trump, null, 'tromf ustala tylko meldunek z ręki');
   applyAction(h, 3, { type: 'play', card: '9C' });
-  assert.equal(h.tricks[0].winner, 2, 'król – teraz atut – bierze lewę');
+  assert.equal(h.tricks[0].winner, 0, 'król nie bije wszystkiego – lewę bierze as pik');
 });
 
 test('meldunek na kimś: tylko na damę gracza tuż przed, tylko gdy król jest dozwolony, nie w 1. lewie domyślnie', () => {
