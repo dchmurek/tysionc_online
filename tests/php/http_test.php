@@ -41,9 +41,9 @@ function check($cond, string $msg): void { if (!$cond) throw new Exception($msg)
 
 try {
     $c = [];
-    foreach (['Kamil', 'Daniel', 'Karol', 'Akuro'] as $n) {
+    foreach (['Kamil', 'Daniel', 'Karol', 'Akuro'] as $i => $n) {
         $x = new Client($base);
-        $r = $x->ok('POST', '/api/auth/register', ['nick' => $n, 'password' => 'bardzo-tajne-haslo-' . $n]);
+        $r = $x->ok('POST', '/api/auth/register', ['nick' => $n, 'password' => 'bardzo-tajne-haslo-' . $i]);
         $x->user = $r['user'];
         $c[] = $x;
     }

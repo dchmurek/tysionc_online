@@ -21,8 +21,7 @@ function throws(callable $fn, string $contains = ''): void
 }
 function priv(object|string $objOrClass, string $method, array $args = [])
 {
-    $m = new ReflectionMethod($objOrClass, $method);
-    $m->setAccessible(true);
+    $m = new ReflectionMethod($objOrClass, $method); // metody prywatne są dostępne przez refleksję od PHP 8.1
     return $m->invokeArgs(is_object($objOrClass) ? $objOrClass : null, $args);
 }
 
@@ -131,7 +130,8 @@ function env(): array
     $rooms = new Rooms($store, $matches, $audit);
     $matches->rooms = $rooms;
     $u = [];
-    foreach (['Kamil', 'Daniel', 'Karol', 'Akuro'] as $n) $u[] = $accounts->register(['nick' => $n, 'password' => 'bardzo-tajne-haslo-' . $n], '127.0.0.1');
+    // hasło nie może zawierać nicku (zasada serwera)
+    foreach (['Kamil', 'Daniel', 'Karol', 'Akuro'] as $i => $n) $u[] = $accounts->register(['nick' => $n, 'password' => 'bardzo-tajne-haslo-' . $i], '127.0.0.1');
     return ['dir' => $dir, 'store' => $store, 'accounts' => $accounts, 'matches' => $matches, 'rooms' => $rooms, 'u' => $u];
 }
 function view(array $e, string $roomId, int $i): array { return $e['rooms']->viewFor($e['rooms']->get($roomId), $e['u'][$i]['id']); }
