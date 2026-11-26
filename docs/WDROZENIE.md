@@ -3,7 +3,7 @@
 ## Czy wystarczy obecny hosting (CyberFolks, PHP)?
 
 **Nie dla pełnej wersji.** Gra online wymaga stale działającego procesu Node.js z WebSocketami. Zwykły hosting współdzielony z PHP tego nie zapewnia.
-Niektóre plany CyberFolks mają obsługę aplikacji Node.js – **trzeba to sprawdzić w panelu** (stały proces, WebSocket przez proxy, możliwość ustawienia katalogu danych poza `public_html`). Jeśli plan tego nie ma, potrzebny jest VPS (np. najmniejszy VPS w CyberFolks lub innym dostawcy – wystarczy 1 vCPU / 1 GB RAM).
+Niektóre plany CyberFolks mają obsługę aplikacji Node.js (instrukcja: [CYBERFOLKS.md](CYBERFOLKS.md)) – **trzeba to sprawdzić w panelu** (stały proces, WebSocket przez proxy, możliwość ustawienia katalogu danych poza `public_html`). Jeśli plan tego nie ma, potrzebny jest VPS (np. najmniejszy VPS w CyberFolks lub innym dostawcy – wystarczy 1 vCPU / 1 GB RAM).
 
 Stara wersja PHP (licznik) nie jest już w repozytorium (jest w historii git, commit sprzed usunięcia `legacy/php/`) i nadal może działać na obecnym hostingu, ale **nie wolno** uruchamiać jej równolegle z nową wersją na tych samych danych – nowa wersja ma własny magazyn (`DATA_DIR`) i jest jedynym zapisującym.
 

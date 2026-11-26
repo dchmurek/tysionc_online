@@ -8,6 +8,10 @@ Aplikacja do gry w Tysiąca na krzyż (4 graczy, 2 drużyny):
 - Konta graczy, statystyki globalne, **automatyczne grupy czwórek**, pary, sesje (spotkania), współpraca i rywalizacja.
 - **Brak bazy danych** – wszystkie dane w plikach JSON po stronie serwera (zapis atomowy, wersje, kopie).
 
+## Hosting PHP (CyberFolks – wrzucenie do public_html)
+
+Wersja bez Node.js na serwerze: `bash deploy/build-public-html.sh` → `dist/tysiac-public_html.zip`, rozpakuj w `public_html`. Szczegóły: `docs/CYBERFOLKS-PHP.md`. Backend PHP: katalog `php/`.
+
 ## Wymagania
 
 - Node.js **22.12+** (zalecany 24 – ma wbudowany Argon2id; na starszym hasła są hashowane scryptem).

@@ -77,3 +77,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wanted && (!sock || sock.readyState > 1)) connect();
 });
 window.addEventListener('online', () => { if (wanted) connect(); });
+
+// Czat stołu działa w wersji PHP (odpytywanie). Tu tylko zgodne API, żeby moduły się ładowały.
+export function setChatKnown() {}
+export function chatMessages(roomId, items, n) { if (items && items.length) fire({ type: 'chat', roomId, items, n }); }

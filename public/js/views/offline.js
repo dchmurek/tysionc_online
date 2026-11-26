@@ -90,7 +90,8 @@ export function newMatch({ el, go, setCta }) {
 // ---------------- Stół ----------------
 const shown = {};
 
-export function table({ el, params, go, setCta, setBar }) {
+// room (opcjonalnie): licznik osadzony w stole – { id, code, onOnline, onRematch, onClose }
+export function table({ el, params, go, setCta, setBar, room = null }) {
   const id = params.id;
   const ui = { logAll: false, sheet: null, draft: null, editId: null };
   const sheetRoot = document.createElement('div');
@@ -123,7 +124,7 @@ export function table({ el, params, go, setCta, setBar }) {
     });
     const rows = c.rows.slice().reverse();
     const visible = ui.logAll ? rows : rows.slice(0, 6);
-    const live = (state.rooms || []).find((r) => r.matchId === id);
+    const live = room ? null : (state.rooms || []).find((r) => r.matchId === id);
     mount(el, html`
       <section class="felt">
         <div class="felt-meta"><span>4 na krzyż · ${m.mode === 'online' ? 'online' : 'offline'}</span>${finished
@@ -136,7 +137,7 @@ export function table({ el, params, go, setCta, setBar }) {
         </div>`}
         <div class="scores n2">${tiles}</div>
       </section>
-      ${live ? html`<a class="notice" href="#/room/${encodeURIComponent(live.id)}">${icon('wifi')} Ten mecz ma otwarty pokój online (kod ${live.code}) – przejdź do gry online</a>` : ''}
+      ${live ? html`<a class="notice" href="#/room/${encodeURIComponent(live.id)}">${icon('table')} Ten mecz ma otwarty stół (kod ${live.code}) – wejdź do stołu</a>` : ''}
       ${pend ? html`<p class="notice warn">${icon('upload')} ${pend} ${pend === 1 ? 'zmiana czeka' : 'zmian czeka'} na wysłanie na serwer</p>` : ''}
       <section class="log">
         <div class="section-head"><span class="eyebrow">Rozdania</span>
@@ -331,7 +332,9 @@ export function table({ el, params, go, setCta, setBar }) {
       body: html`<p class="muted small">${fmtDateTime(m.createdAt)} · zasady: do ${m.settings.target}, zaokrąglanie ${ROUNDING_LABEL[m.settings.rounding]}, kontrakt ${CHECK_LABEL[m.settings.contractCheck]}</p>`,
       buttons: [
         { label: 'Szczegóły i wykres', value: 'details' },
-        ...(!finished ? [{ label: 'Kontynuuj online', value: 'online', kind: 'gold' }, { label: 'Przerwij mecz', value: 'abandon' }] : []),
+        ...(!finished ? (room
+          ? [{ label: 'Przejdź na grę online', value: 'online', kind: 'gold' }, { label: 'Zamknij stół', value: 'close-room' }, { label: 'Przerwij mecz', value: 'abandon' }]
+          : [{ label: 'Otwórz stół (czat, kod dla graczy)', value: 'open-room', kind: 'gold' }, { label: 'Kontynuuj online', value: 'online' }, { label: 'Przerwij mecz', value: 'abandon' }]) : []),
         ...(m.status === 'abandoned' ? [{ label: 'Wznów mecz', value: 'reopen' }] : []),
         ...(m.status === 'finished' ? [{ label: 'Rewanż', value: 'rematch', kind: 'gold' }] : []),
         { label: 'Usuń mecz', value: 'delete', kind: 'danger' },
@@ -347,13 +350,22 @@ export function table({ el, params, go, setCta, setBar }) {
       if (act === 'details') go(`/match/${encodeURIComponent(id)}/details`);
       if (act === 'abandon' && (await confirmBox('Przerwać mecz?', 'Przerwany mecz nie liczy się do wygranych. Można go później wznowić.', 'Przerwij'))) { await matchOp('status', id, { status: 'abandoned' }); draw(); }
       if (act === 'reopen') { await matchOp('status', id, { status: 'active' }); draw(); }
-      if (act === 'delete' && (await confirmBox('Usunąć mecz?', 'Mecz zniknie z historii i statystyk. Administrator może go przywrócić.', 'Usuń', 'danger'))) { await matchOp('status', id, { status: 'deleted' }); go('/history', { replace: true }); }
+      if (act === 'delete' && (await confirmBox('Usunąć mecz?', 'Mecz zniknie z historii i statystyk. Administrator może go przywrócić.', 'Usuń', 'danger'))) { await matchOp('status', id, { status: 'deleted' }); go('/', { replace: true }); }
+      if (act === 'close-room' && room) room.onClose();
+      if (act === 'online' && room) { room.onOnline(); return; }
+      if (act === 'open-room') {
+        if (pendingFor(id).length) return toast('Najpierw muszą się wysłać zapisane wyniki (brak internetu?)');
+        const { room: r } = await post('/api/rooms', { fromMatchId: id, mode: 'offline' });
+        await loadData();
+        go('/room/' + encodeURIComponent(r.id));
+      }
       if (act === 'online') {
         if (pendingFor(id).length) return toast('Najpierw muszą się wysłać zapisane wyniki (brak internetu?)');
         const { room } = await post('/api/rooms', { fromMatchId: id });
         await loadData();
         go('/room/' + encodeURIComponent(room.id));
       }
+      if (act === 'rematch' && room) { room.onRematch(); return; }
       if (act === 'rematch') {
         const lastDealerSeat = m.seats.indexOf(m.rounds.at(-1)?.dealer);
         const nid = await createMatch({ seats: m.seats, settings: m.settings, firstDealerSeat: (lastDealerSeat + 1) % 4 });

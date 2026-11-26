@@ -1,0 +1,42 @@
+# Tysiąc – konfiguracja serwera WWW (Apache / LiteSpeed na CyberFolks).
+Options -Indexes
+DirectoryIndex index.html
+AddDefaultCharset utf-8
+AddType text/javascript .js
+AddType application/manifest+json .webmanifest
+AddType image/svg+xml .svg
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Kod PHP i dane nigdy nie są dostępne z internetu.
+  RewriteRule ^(_app|_dane)(/|$) - [F,L]
+  # Pliki ukryte (.htaccess, .lock itp.) – poza .well-known (certyfikat SSL Let's Encrypt)
+  RewriteRule (^|/)\.(?!well-known/) - [F,L]
+  # Wymuszenie HTTPS – usuń znaki # z 3 linii poniżej, gdy certyfikat SSL jest już włączony w panelu:
+  # RewriteCond %{HTTPS} !=on
+  # RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+  # API
+  RewriteRule ^api/ api.php [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "same-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  <FilesMatch "\.html$">
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+  </FilesMatch>
+  <FilesMatch "\.(html|js|css|webmanifest|json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <Files "sw.js">
+    Header set Service-Worker-Allowed "/"
+  </Files>
+</IfModule>
+
+<FilesMatch "\.(md|sh|lock|jsonl|gz|enc|tmp)$">
+  Require all denied
+</FilesMatch>

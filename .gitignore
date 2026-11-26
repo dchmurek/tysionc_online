@@ -23,3 +23,7 @@ test-results/
 playwright-report/
 tests/.tmp/
 .claude/settings.local.json
+
+# Dane aplikacji PHP (konta, hasła, mecze) – NIGDY do repozytorium
+_dane/
+tysiac-baza/

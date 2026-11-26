@@ -1,6 +1,8 @@
 // Tryb online: poczekalnia (pokoje) i stół gry. Stan gry przychodzi wyłącznie z serwera (WebSocket).
-import { html, mount, $, toast, confirmBox, fmtNum, signed, raw, vibrate, copyText } from '../dom.js';
-import { state, nick, matchById, refreshMatch, subscribe, post, get, loadData } from '../state.js';
+import { html, mount, $, toast, confirmBox, dialog, fmtNum, signed, raw, vibrate, copyText } from '../dom.js';
+import { state, nick, matchById, refreshMatch, subscribe, post, get, loadData, pendingFor } from '../state.js';
+import { mountChat } from '../chat.js';
+import { table as offlineTable } from './offline.js';
 import { subscribeRoom, unsubscribeRoom, onWs, act as wsAct, connect, wsState } from '../ws.js';
 import { computeMatch } from '/shared/scoring.js';
 import { SUIT_INFO, DEFAULT_SETTINGS } from '/shared/rules.js';
@@ -12,73 +14,10 @@ import { flyCard, centerBanner, slideIn, sweepTo, animationsOn, clearFx } from '
 const DEAL_STEP = 70;  // ms między kolejnymi kartami przy rozdawaniu
 const DEAL_FLY = 320;  // ms lotu jednej karty
 
-const STATUS = { lobby: 'Poczekalnia', playing: 'Trwa rozdanie', between: 'Przerwa między rozdaniami', finished: 'Mecz zakończony', closed: 'Pokój zamknięty' };
+export const STATUS = { lobby: 'Poczekalnia', playing: 'Gra online – trwa rozdanie', between: 'Gra online – przerwa', finished: 'Mecz zakończony', offline: 'Prawdziwe karty – liczenie punktów', closed: 'Stół zamknięty' };
 
-export function lobby({ el, go }) {
-  const s = { ...DEFAULT_SETTINGS, ...(state.defaults || {}) };
-  const activeMine = state.matches.filter((m) => m.status === 'active' && m.seats.includes(state.me.id));
-  mount(el, html`
-    <a class="back" href="#/play">${icon('chevronLeft')}Wróć</a>
-    <div class="page-head"><div><div class="eyebrow">Gra online</div><h1 class="title-xl">Pokoje</h1></div></div>
-    <div class="grid-2">
-      <section class="card">
-        <h3>Dołącz kodem</h3>
-        <form class="join" data-form="join">
-          <label class="field"><span>Kod zaproszenia (6 znaków)</span><input name="code" required minlength="6" maxlength="7" autocapitalize="characters" autocomplete="off" spellcheck="false" class="mono code-in" placeholder="ABC123"></label>
-          <button class="btn gold wide" type="submit">Dołącz</button>
-        </form>
-      </section>
-      <section class="card">
-        <h3>Nowy pokój</h3>
-        <form data-form="create">
-          <div class="form-grid">
-            <label class="field"><span>Gra do</span><input type="number" name="target" value="${s.target}" step="10" min="100"></label>
-            <label class="field"><span>Zaokrąglanie</span><select name="rounding"><option value="nearest10" ${s.rounding === 'nearest10' ? raw('selected') : ''}>do najbliższej 10</option><option value="down10" ${s.rounding === 'down10' ? raw('selected') : ''}>w dół do 10</option><option value="exact" ${s.rounding === 'exact' ? raw('selected') : ''}>bez zaokrąglania</option></select></label>
-          </div>
-          <details class="rules"><summary>Zasady rozgrywki</summary>
-            <label class="check"><input type="checkbox" name="mustBeat" ${s.mustBeat ? raw('checked') : ''}> Obowiązek przebicia (do koloru i tromfem)</label>
-            <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania tromfu</label>
-            <label class="check"><input type="checkbox" name="meldOnFirstTrick" ${s.meldOnFirstTrick ? raw('checked') : ''}> Meldunek dozwolony już w pierwszej lewie</label>
-            <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim – same punkty, tromf bez zmian)</label>
-            <p class="hint">Licytację otwiera obowiązkowo gracz po lewej rozdającego (${s.minBid}). Licytuje się zawsze o ${s.bidStep} w górę (bez skakania), bez ograniczeń wynikających z meldunków.</p>
-          </details>
-          <button class="btn gold wide" type="submit">Utwórz pokój</button>
-        </form>
-      </section>
-    </div>
-    ${activeMine.length ? html`<section class="card"><h3>Kontynuuj swój mecz online</h3>
-      <p class="muted small">Wynik, drużyny i historia zostają – zaczyna się nowe cyfrowe rozdanie.</p>
-      ${activeMine.map((m) => { const c = computeMatch(m); return html`<button type="button" class="game-card" data-act="continue" data-id="${m.id}"><div class="gc-main"><div class="gc-sides">${c.teams.map((t, i) => html`<span>${teamDots(t, i)} ${t.map(nick).join(' & ')} <b class="num">${fmtNum(c.scores[i])}</b></span>`)}</div><div class="gc-meta">${m.rounds.length} rozdań</div></div><span class="chev">${icon('wifi')}</span></button>`; })}
-    </section>` : ''}
-    ${(state.rooms || []).length ? html`<section class="card"><h3>Twoje pokoje</h3>${state.rooms.map((r) => html`<a class="game-card" href="#/room/${encodeURIComponent(r.id)}"><div class="gc-main"><div class="gc-sides"><span>Kod <b class="mono">${r.code}</b></span></div><div class="gc-meta">${STATUS[r.status]}</div></div><span class="chev">${icon('chevronRight')}</span></a>`)}</section>` : ''}`);
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    const btn = f.querySelector('button[type=submit]');
-    btn.disabled = true;
-    try {
-      if (f.dataset.form === 'join') {
-        const { room } = await post('/api/rooms/join', { code: f.code.value });
-        go('/room/' + encodeURIComponent(room.id));
-      } else {
-        const fd = new FormData(f);
-        const settings = { target: Number(fd.get('target')), rounding: fd.get('rounding'), mustBeat: !!fd.get('mustBeat'), mustTrump: !!fd.get('mustTrump'), meldOnFirstTrick: !!fd.get('meldOnFirstTrick'), meldOnPlayed: !!fd.get('meldOnPlayed') };
-        const { room } = await post('/api/rooms', { settings });
-        go('/room/' + encodeURIComponent(room.id));
-      }
-    } catch (ex) { toast(ex.network ? 'Gra online wymaga internetu' : ex.message, { kind: 'bad' }); } finally { btn.disabled = false; }
-  };
-  const onClick = async (e) => {
-    const a = e.target.closest('[data-act="continue"]');
-    if (!a) return;
-    try {
-      const { room } = await post('/api/rooms', { fromMatchId: a.dataset.id });
-      go('/room/' + encodeURIComponent(room.id));
-    } catch (ex) { toast(ex.message, { kind: 'bad' }); }
-  };
-  el.addEventListener('submit', onSubmit);
-  el.addEventListener('click', onClick);
-}
+// Dawna lista pokoi – teraz wszystko jest w zakładce „Graj” (stoły).
+export function lobby({ go }) { go('/play', { replace: true }); }
 
 // Link zaproszenia (#/join/KOD): zalogowany gracz od razu wchodzi do pokoju.
 export async function joinLink({ el, params, go }) {
@@ -87,7 +26,7 @@ export async function joinLink({ el, params, go }) {
     const { room } = await post('/api/rooms/join', { code: params.code });
     go('/room/' + encodeURIComponent(room.id), { replace: true });
   } catch (ex) {
-    mount(el, html`<div class="card empty">${ex.network ? 'Gra online wymaga internetu' : ex.message}<br><a class="btn" href="#/online">Pokoje</a></div>`);
+    mount(el, html`<div class="card empty">${ex.network ? 'Dołączenie do stołu wymaga internetu' : ex.message}<br><a class="btn" href="#/play">Stoły</a></div>`);
   }
 }
 
@@ -126,11 +65,28 @@ export function room({ el, params, go, setCta, setBar }) {
   let endFlash = false;
   let endTimer = null;
   let giveDraft = {}; // musik: komu którą kartę (seat → karta), zatwierdzane jednym przyciskiem
+  let selectedAt = 0; // kiedy wybrano kartę – filtr zdublowanych zdarzeń (nie blokuje zwykłego podwójnego stuknięcia)
+  // Przerysowanie w trakcie stuknięcia podmienia kartę pod palcem i „gubi” kliknięcie (np. drugie stuknięcie
+  // z meldunkiem). Dlatego zmiany z serwera rysujemy dopiero po puszczeniu palca.
+  let pointerDown = false;
+  let pendingDraw = false;
+  let turnDeadline = null; // performance.now(), kiedy mija czas gracza na ruch
+  let warned = false; // wibracja „zostało 10 s” już była
+  let timerTick = null;
+  let firstDealer = 0; // kto pierwszy tasuje (nowy mecz)
+  let offlineFor = null; // mecz osadzony w trybie offline
+  let offlineCleanup = null;
+  let unChat = null;
+  let gone = false;
 
   connect();
   subscribeRoom(roomId);
   // pierwszy stan także przez HTTP (szybciej i działa, gdy WebSocket dopiero się łączy)
-  get('/api/rooms/' + encodeURIComponent(roomId)).then((r) => { if (!view) { view = r.room; draw(); } }).catch((e) => { mount(el, html`<div class="card empty">${e.message}<br><a class="btn" href="#/online">Pokoje</a></div>`); });
+  get('/api/rooms/' + encodeURIComponent(roomId)).then((r) => {
+    if (gone) return;
+    if (!unChat) unChat = mountChat(roomId);
+    if (!view) { view = r.room; online = r.room.online || online; setDeadline(null); if (view.matchId && !matchById(view.matchId)) loadData(); draw(); }
+  }).catch((e) => { if (!gone) mount(el, html`<div class="card empty">${e.message}<br><a class="btn" href="#/play">Stoły</a></div>`); });
 
   const send = async (action) => {
     if (busy) return;
@@ -152,6 +108,7 @@ export function room({ el, params, go, setCta, setBar }) {
   const POS_TXT = { left: 'po lewej', top: 'naprzeciwko', right: 'po prawej' };
   const isPartner = (seat) => view.mySeat >= 0 && seat !== view.mySeat && seat % 2 === view.mySeat % 2;
   // Król/dama z pary w ręce, ale meldować teraz nie można (np. 1. lewa albo nie wychodzisz) – zagranie wymaga potwierdzenia.
+  const pairSuits = (h) => ['S', 'C', 'D', 'H'].filter((x) => h.hand.includes('K' + x) && h.hand.includes('Q' + x));
   const pairNoMeld = (h, c) => (c[0] === 'K' || c[0] === 'Q') && h.hand.includes((c[0] === 'K' ? 'Q' : 'K') + c[1]) && !h.meldable.includes(c);
   // Na kogo melduje król (poprzedni gracz zagrał damę tego koloru) – albo -1.
   const meldOnOf = (h, c) => {
@@ -162,57 +119,199 @@ export function room({ el, params, go, setCta, setBar }) {
   // Panel boczny leży poza widokiem stołu (position: fixed względem całego ekranu).
   const panelHost = document.createElement('div');
   document.body.appendChild(panelHost);
+  function setDeadline(prev) {
+    const changed = !prev || prev.seq !== view.seq || prev.handNo !== view.handNo || prev.status !== view.status;
+    if (view.turnLeftMs == null) turnDeadline = null;
+    else if (changed || turnDeadline == null) { turnDeadline = performance.now() + view.turnLeftMs; warned = false; }
+  }
+  const secsLeft = () => (turnDeadline == null ? null : Math.max(0, Math.ceil((turnDeadline - performance.now()) / 1000)));
+  const fmtSecs = (x) => (x >= 60 ? `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}` : `${x}s`);
+  // Odliczanie bez przerysowywania stołu – tylko teksty zegarów.
+  function tick() {
+    const left = secsLeft();
+    for (const t of el.querySelectorAll('[data-timer]')) {
+      t.hidden = left == null;
+      if (left == null) continue;
+      t.textContent = fmtSecs(Math.min(left, view.turnSeconds || left));
+      t.classList.toggle('warn', left <= 10);
+    }
+    const mine = view && view.hand && view.hand.turn === view.mySeat && view.mySeat >= 0;
+    if (mine && left != null && left <= 10 && left > 0 && !warned) { warned = true; vibrate([12, 80, 12, 80, 12]); }
+  }
+  timerTick = setInterval(() => { if (view && turnDeadline != null) tick(); }, 500);
+
   function draw() {
-    const ph = view && view.status !== 'lobby' && view.hand;
+    if (pointerDown) { pendingDraw = true; return; }
+    pendingDraw = false;
+    const ph = view && view.status !== 'lobby' && view.status !== 'offline' && view.hand;
     mount(panelHost, bidsOpen && ph ? drawBids(view.hand) : '');
     drawMain();
   }
   function drawMain() {
     if (!view) { mount(el, html`<div class="loading"><span class="spinner"></span>Łączenie ze stołem…</div>`); return; }
-    setBar(html`<span class="conn ${wsState.connected ? 'on' : 'off'}" title="${wsState.connected ? 'połączono' : 'łączenie…'}">${icon('wifi')}</span><a class="icon-btn" href="#/" aria-label="Wyjdź do menu (gra trwa dalej)">${icon('home')}</a>`);
+    if (view.status === 'offline') return drawOffline();
+    stopOffline();
+    setBar(html`<span class="conn ${wsState.connected ? 'on' : 'off'}" title="${wsState.connected ? 'połączono' : 'łączenie…'}">${icon('wifi')}</span><button type="button" class="icon-btn" data-act="room-menu" aria-label="Opcje stołu">${icon('more')}</button><a class="icon-btn" href="#/" aria-label="Wyjdź do menu (gra trwa dalej)">${icon('home')}</a>`);
     if (view.status === 'lobby') return drawLobby();
-    return drawTable();
+    drawTable();
+    tick();
+  }
+
+  // ---------- tryb offline: licznik punktów osadzony w stole (czat i kod zostają) ----------
+  function stopOffline() {
+    if (offlineCleanup) { try { offlineCleanup(); } catch { /* */ } }
+    offlineCleanup = null;
+    offlineFor = null;
+  }
+  function drawOffline() {
+    const m = matchById(view.matchId);
+    if (!m) { stopOffline(); setCta(''); mount(el, html`<div class="loading"><span class="spinner"></span>Wczytywanie meczu…</div>`); return; }
+    if (offlineFor !== view.matchId) {
+      stopOffline();
+      mount(el, html`<div class="room-strip"></div><div class="room-offline"></div>`);
+      offlineFor = view.matchId;
+      offlineCleanup = offlineTable({
+        el: el.querySelector('.room-offline'), params: { id: view.matchId }, go, setCta, setBar,
+        room: { id: roomId, code: view.code, onOnline: goOnline, onRematch: () => send({ type: 'rematch' }), onClose: closeRoom },
+      });
+    }
+    const strip = el.querySelector('.room-strip');
+    const here = view.seats.filter((u) => online.includes(u));
+    if (strip) mount(strip, html`<div class="rs-main">${icon('cards')}<span><b>Stół <span class="mono">${view.code}</span></b><small>prawdziwe karty · przy stole: ${here.length ? here.map(nick).join(', ') : 'tylko Ty'}</small></span></div>
+      <div class="rs-btns"><button type="button" class="btn sm" data-act="invite">${icon('users')}Zaproś</button>${m.status === 'active' ? html`<button type="button" class="btn sm gold" data-act="go-online">${icon('wifi')}Graj online</button>` : ''}</div>`);
+  }
+  async function goOnline() {
+    if (pendingFor(view.matchId).length) { toast('Najpierw muszą się wysłać zapisane wyniki (brak internetu?)'); return; }
+    if (await confirmBox('Przejść na grę online?', 'Każdy gracz wchodzi do tego stołu na swoim telefonie i zgłasza gotowość. Wynik i historia zostają.', 'Przejdź')) send({ type: 'go-online' });
+  }
+  async function closeRoom() {
+    const m = view.matchId ? matchById(view.matchId) : null;
+    const body = m && m.status === 'active' ? 'Mecz zostaje – dokończysz go później z ekranu głównego (Kontynuuj mecz).' : 'Stół zniknie z listy. Mecze zostają w historii.';
+    if (await confirmBox('Zamknąć stół?', body, 'Zamknij')) send({ type: 'close' });
+  }
+  async function deleteMatch() {
+    if (!view.matchId) return;
+    if (!(await confirmBox('Usunąć mecz?', 'Mecz zniknie z historii i statystyk, a stół zostanie zamknięty. Administrator może mecz przywrócić.', 'Usuń', 'danger'))) return;
+    try {
+      await post(`/api/matches/${encodeURIComponent(view.matchId)}/status`, { status: 'deleted' });
+      await loadData();
+      go('/', { replace: true });
+    } catch (e) { toast(e.message, { kind: 'bad' }); }
+  }
+  async function invite() {
+    const link = inviteLink(view.code);
+    const v = await dialog({
+      title: `Stół ${view.code}`,
+      body: html`<div class="room-code mono">${view.code}</div>${qrSvg(link)}<p class="muted small center">Zeskanuj aparatem albo wpisz kod w zakładce „Graj”.</p>`,
+      buttons: [{ label: 'Kopiuj link', value: 'link' }, ...(navigator.share ? [{ label: 'Udostępnij', value: 'share' }] : []), { label: 'Zamknij', value: null, kind: 'gold' }],
+    });
+    if (v === 'link') toast((await copyText(link)) ? 'Skopiowano link do stołu' : `Link: ${link}`);
+    if (v === 'share') { try { await navigator.share({ title: 'Tysiąc – zaproszenie', text: `Siadaj do stołu – kod ${view.code}`, url: link }); } catch { /* anulowano */ } }
+  }
+  async function roomMenu() {
+    const m = view.matchId ? matchById(view.matchId) : null;
+    const playing = view.status === 'playing';
+    const v = await dialog({
+      title: `Stół ${view.code}`,
+      body: html`<p class="muted small">${STATUS[view.status] || ''}</p>`,
+      buttons: [
+        { label: 'Zaproś (kod, QR)', value: 'invite' },
+        ...(view.status === 'between' ? [{ label: 'Przejdź na prawdziwe karty', value: 'detach' }] : []),
+        ...(m && view.status !== 'lobby' ? [{ label: 'Szczegóły meczu', value: 'match' }] : []),
+        ...(!playing ? [{ label: 'Zamknij stół', value: 'close' }] : []),
+        ...(m && !playing ? [{ label: 'Usuń mecz', value: 'delete', kind: 'danger' }] : []),
+        ...(playing && state.me.role === 'admin' ? [{ label: 'Unieważnij rozdanie (admin)', value: 'abort', kind: 'danger' }] : []),
+        { label: 'Anuluj', value: null },
+      ],
+    });
+    if (v === 'invite') invite();
+    if (v === 'detach') detach();
+    if (v === 'match') go('/match/' + encodeURIComponent(view.matchId) + '/details');
+    if (v === 'close') closeRoom();
+    if (v === 'delete') deleteMatch();
+    if (v === 'abort' && (await confirmBox('Unieważnić rozdanie?', 'Rozdanie zostanie przerwane bez zapisu punktów. Używaj tylko, gdy gra nie może być kontynuowana.', 'Unieważnij', 'danger'))) send({ type: 'abort-hand' });
+  }
+  async function detach() {
+    if (await confirmBox('Przejść na prawdziwe karty?', 'Gracie dalej talią przy stole, a aplikacja liczy punkty. Wynik, historia i czat zostają.', 'Przejdź')) send({ type: 'detach' });
+  }
+  async function seatOther(seat) {
+    const taken = new Set(view.seats.filter(Boolean));
+    const users = state.users.filter((u) => u.status !== 'disabled' && !taken.has(u.id)).sort((a, b) => a.nick.localeCompare(b.nick, 'pl'));
+    const v = await dialog({
+      title: `Kto siada na miejscu ${seat + 1}?`,
+      body: html`<p class="muted small">Do gry prawdziwymi kartami wystarczy jeden telefon. Do gry online każdy musi wejść do stołu u siebie.</p>`,
+      buttons: [...users.map((u) => ({ label: u.nick, value: u.id })), { label: '+ Gracz bez konta', value: '__new' }, { label: 'Anuluj', value: null }],
+    });
+    if (!v) return;
+    let uid = v;
+    if (v === '__new') {
+      const r = await dialog({ title: 'Gracz bez konta', body: html`<p class="muted small">Powstanie profil z trwałym ID. Gracz może później aktywować go kodem od administratora i przejąć swoje statystyki.</p>`, fields: [{ name: 'nick', label: 'Nick', required: true }], buttons: [{ label: 'Anuluj', value: false }, { label: 'Dodaj', value: true, kind: 'gold' }] });
+      if (!r || !r.value) return;
+      try {
+        const { user } = await post('/api/users/profile', { nick: r.fields.nick });
+        state.users.push(user);
+        uid = user.id;
+      } catch (ex) { toast(ex.message, { kind: 'bad' }); return; }
+    }
+    send({ type: 'seat-other', seat, userId: uid });
   }
 
   function drawLobby() {
     const meSeated = view.mySeat >= 0;
-    const allReady = view.seats.every(Boolean) && view.ready.every(Boolean);
+    const full = view.seats.every(Boolean);
+    const allReady = full && view.ready.every(Boolean);
+    const readyN = view.ready.filter(Boolean).length;
     const m = view.matchId ? matchById(view.matchId) : null;
+    const S = view.settings || {};
+    const notJoined = view.seats.filter((u) => u && !view.members.includes(u));
     mount(el, html`
-      <a class="back" href="#/online">${icon('chevronLeft')}Pokoje</a>
-      <div class="page-head"><div><div class="eyebrow">${m ? 'Kontynuacja meczu' : 'Nowy mecz online'}</div><h1 class="title-xl">Poczekalnia</h1></div></div>
-      <section class="card code-card">
-        <div class="muted small">Kod zaproszenia</div>
+      <a class="back" href="#/play">${icon('chevronLeft')}Stoły</a>
+      <div class="page-head"><div><div class="eyebrow">${m ? 'Kontynuacja meczu' : 'Nowy stół'}</div><h1 class="title-xl">Stół <span class="mono">${view.code}</span></h1></div>
+        <button type="button" class="btn sm" data-act="invite">${icon('users')}Zaproś</button></div>
+      <section class="card code-card compact">
         <div class="room-code mono" aria-label="Kod ${view.code.split('').join(' ')}">${view.code}</div>
         <div class="row wrap center code-btns">
           <button type="button" class="btn sm" data-act="copy-code">${icon('copy')}Kopiuj kod</button>
           <button type="button" class="btn sm" data-act="copy-link">${icon('copy')}Kopiuj link</button>
           ${navigator.share ? html`<button type="button" class="btn sm" data-act="share">Udostępnij</button>` : ''}
         </div>
-        <details class="qr-box"><summary>Pokaż kod QR</summary>${qrSvg(inviteLink(view.code))}<div class="muted small">Zeskanuj aparatem – zalogowany gracz od razu wejdzie do pokoju.</div></details>
       </section>
-      ${view.reservedSeats ? html`<p class="hint">Miejsca są przypisane z meczu – każdy gracz siada automatycznie po dołączeniu kodem.</p>` : html`<p class="hint">Partnerzy siedzą naprzeciwko: drużyna A to miejsca 1 i 3, drużyna B – 2 i 4.</p>`}
+      <p class="hint">${view.reservedSeats ? 'Miejsca są przypisane z meczu.' : 'Partnerzy siedzą naprzeciwko: drużyna A to miejsca 1 i 3, drużyna B – 2 i 4. Kolejność miejsc = kolejność rozdawania.'}</p>
       <div class="lobby-seats">${[0, 1, 2, 3].map((s) => {
         const u = view.seats[s];
-        const reserved = view.reservedSeats ? view.reservedSeats[s] : null;
+        const joined = u && view.members.includes(u);
         return html`<div class="lseat team-${s % 2 ? 'b' : 'a'} ${u === state.me.id ? 'me' : ''}">
           <div class="ls-h">Miejsce ${s + 1} · drużyna ${s % 2 ? 'B' : 'A'}</div>
-          ${u ? html`<div class="ls-u">${teamDot(s % 2)}<b>${nick(u)}</b>${online.includes(u) ? html`<span class="online-dot" title="online"></span>` : html`<span class="muted small">offline</span>`}</div>
-              <div class="ls-r ${view.ready[s] ? 'ok' : ''}">${view.ready[s] ? html`${icon('check')}gotowy` : 'czeka'}</div>`
-            : reserved ? html`<div class="ls-u muted">${teamDot(s % 2)}${nick(reserved)} – jeszcze nie dołączył</div>`
-              : html`<button type="button" class="btn sm" data-act="sit" data-seat="${s}">Usiądź tutaj</button>`}
+          ${u ? html`<div class="ls-u">${teamDot(s % 2)}<b>${nick(u)}</b>${online.includes(u) ? html`<span class="online-dot" title="przy stole"></span>` : joined ? html`<span class="muted small">rozłączony</span>` : ''}</div>
+              <div class="ls-r ${view.ready[s] ? 'ok' : ''}">${view.ready[s] ? html`${icon('check')}gotowy online` : joined ? 'nie gotowy' : 'bez telefonu – tylko offline'}</div>
+              ${!view.reservedSeats && u !== state.me.id && !joined ? html`<button type="button" class="link small" data-act="unseat" data-seat="${s}">zwolnij miejsce</button>` : ''}`
+            : html`<div class="ls-btns"><button type="button" class="btn sm" data-act="sit" data-seat="${s}">Usiądź tutaj</button><button type="button" class="btn sm ghost" data-act="seat-other" data-seat="${s}">${icon('plus')}Posadź gracza</button></div>`}
         </div>`;
       })}</div>
-      <section class="card"><h3>W pokoju</h3><div class="members">${view.members.map((u) => html`<span class="member">${view.seats.includes(u) ? teamDot(view.seats.indexOf(u) % 2) : dot(u)}${nick(u)}${online.includes(u) ? html`<span class="online-dot"></span>` : ''}</span>`)}</div></section>
+      ${!m ? html`<div class="form-grid">
+        <label class="field"><span>Pierwszy tasuje</span><select data-act="first-dealer">${[0, 1, 2, 3].map((i) => html`<option value="${i}" ${firstDealer === i ? raw('selected') : ''}>Miejsce ${i + 1}${view.seats[i] ? ' – ' + nick(view.seats[i]) : ''}</option>`)}</select></label>
+        <div class="field"><span>Zasady</span><div class="muted small">gra do ${S.target || 1000} · ${S.rounding === 'exact' ? 'bez zaokrąglania' : S.rounding === 'down10' ? 'w dół do 10' : 'zaokrąglanie do 10'}</div></div>
+      </div>` : ''}
+      <div class="mode-cards">
+        <section class="mode-card">
+          <div class="mc-h">${icon('cards')}<div><b>Prawdziwe karty</b><small>Gracie talią, aplikacja liczy punkty. Wystarczy jeden telefon.</small></div></div>
+          <button type="button" class="btn gold wide" data-act="start-offline" ${full ? '' : raw('disabled')}>${full ? 'Gramy offline ♠' : `Posadź jeszcze ${4 - view.seats.filter(Boolean).length}`}</button>
+        </section>
+        <section class="mode-card">
+          <div class="mc-h">${icon('wifi')}<div><b>Gra w aplikacji (online)</b><small>Każdy na swoim telefonie – serwer rozdaje karty i pilnuje zasad.</small></div></div>
+          <div class="muted small">Gotowi: ${readyN}/4${notJoined.length ? html` · musi wejść kodem: ${notJoined.map(nick).join(', ')}` : ''}</div>
+        <label class="field timer-field"><span>Czas na ruch (online)</span><select data-act="timer">${[0, 30, 60, 90, 120].map((x) => html`<option value="${x}" ${(view.turnSeconds ?? 60) === x ? raw('selected') : ''}>${x ? x + ' s – potem ruch automatyczny' : 'bez limitu'}</option>`)}</select></label>
+          ${meSeated ? html`<button type="button" class="btn wide" data-act="ready">${view.ready[view.mySeat] ? `${icon('check')} Jestem gotowy (cofnij)` : 'Jestem gotowy'}</button>` : ''}
+          <button type="button" class="btn gold wide" data-act="start" ${allReady ? '' : raw('disabled')}>Gramy online ♠</button>
+        </section>
+      </div>
+      <section class="card"><h3>Przy stole</h3><div class="members">${view.members.map((u) => html`<span class="member">${view.seats.includes(u) ? teamDot(view.seats.indexOf(u) % 2) : dot(u)}${nick(u)}${online.includes(u) ? html`<span class="online-dot"></span>` : ''}</span>`)}</div></section>
       <div class="row wrap">
         ${meSeated && !view.reservedSeats ? html`<button type="button" class="btn sm" data-act="stand">Wstań</button>` : ''}
-        <button type="button" class="btn sm" data-act="leave">Opuść pokój</button>
-        ${m ? html`<button type="button" class="btn sm" data-act="detach">${icon('cards')}Wróć do trybu offline</button>` : ''}
+        ${!m ? html`<button type="button" class="btn sm" data-act="leave">Opuść stół</button>` : ''}
+        <button type="button" class="btn sm" data-act="close">Zamknij stół</button>
       </div>`);
-    if (meSeated) {
-      const myReady = view.ready[view.mySeat];
-      setCta(html`<button class="btn-ghost" data-act="ready">${myReady ? 'Jednak nie gotowy' : 'Jestem gotowy'}</button><button class="btn-gold" data-act="start" ${allReady ? '' : raw('disabled')}>Start ♠</button>`);
-    } else setCta('');
+    setCta('');
   }
 
   function scoresOf() {
@@ -228,7 +327,7 @@ export function room({ el, params, go, setCta, setBar }) {
     const bidH = h && h.phase === 'bidding' ? [...h.bidding.history].reverse().find((x) => x.seat === seat) : null;
     const melds = h ? h.melds.filter((x) => x.seat === seat) : [];
     return html`<div class="seat-box ${pos} team-${seat % 2 ? 'b' : 'a'} ${turn ? 'turn' : ''} ${u === state.me.id ? 'me' : ''}">
-      <div class="sb-name">${teamDot(seat % 2)}<b>${nick(u)}</b>${h && h.dealerSeat === seat ? html`<span class="chipd" title="rozdaje">R</span>` : ''}${online.includes(u) ? '' : html`<span class="badge warn" title="rozłączony">offline</span>`}</div>
+      <div class="sb-name">${turn && view.turnLeftMs != null ? html`<span class="turn-timer" data-timer></span>` : ''}${teamDot(seat % 2)}<b>${nick(u)}</b>${h && h.dealerSeat === seat ? html`<span class="chipd" title="rozdaje">R</span>` : ''}${online.includes(u) ? '' : html`<span class="badge warn" title="rozłączony">offline</span>`}</div>
       <div class="sb-meta">${h ? html`${pos !== 'bottom' ? html`<span class="backs">${Array.from({ length: h.handCounts[seat] }, () => card(null, { back: true, small: true }))}</span>` : ''}
         ${pos !== 'bottom' ? html`<span class="cnt" title="kart w ręce">${h.handCounts[seat]} kart</span>` : ''}<span class="muted small">lewy: ${h.tricksWon[seat]}</span>` : ''}
         ${bidH ? html`<span class="bubble ${bidH.type}">${bidH.type === 'pass' ? 'pas' : bidH.value}</span>` : ''}
@@ -251,15 +350,17 @@ export function room({ el, params, go, setCta, setBar }) {
     mount(el, html`
       <div class="game">
         <div class="gbar">
-          ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''}"><span class="gs-n">${teamDots(teamsTxt[t], t)}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
-          <div class="ginfo">
-            ${contract ? html`<span class="gi">kontrakt <b>${contract.value}</b> · ${nick(view.seats[contract.seat])}</span>` : h && h.phase === 'bidding' ? html`<span class="gi">licytacja: <b>${h.bidding.highest}</b> · ${nick(view.seats[h.bidding.highestSeat])}</span>` : ''}
-            <span class="gi">tromf ${h && h.trump ? suitSym(h.trump) : html`<span class="muted">brak</span>`}</span>
-            <span class="gi">rozdanie ${view.handNo}</span>
-            ${h ? html`<button type="button" class="gi gi-btn" data-act="bids" aria-expanded="${bidsOpen}">${icon('list')}licytacja (${h.bidding.history.length})</button>` : ''}
-          </div>
+          ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''} ${me >= 0 && me % 2 === t ? 'mine' : ''}"><span class="gs-n">${teamDots(teamsTxt[t], t)}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
         </div>
         <div class="felt-table ${h && h.phase === 'giving' && myTurn ? 'compact' : ''}" aria-label="Stół">
+          <div class="table-info" aria-label="Informacje o rozdaniu">
+            <div class="ti-trump ${h && h.trump ? '' : 'none'}" title="tromf">${h && h.trump ? suitSym(h.trump) : '–'}<small>tromf</small></div>
+            <div class="ti-lines">
+              ${contract ? html`<div><b>${contract.value}</b> <span>${nick(view.seats[contract.seat])}</span></div>` : h && h.phase === 'bidding' ? html`<div><b>${h.bidding.highest}</b> <span>${nick(view.seats[h.bidding.highestSeat])}</span></div>` : ''}
+              <small>${contract ? 'kontrakt' : h && h.phase === 'bidding' ? 'licytacja' : ''} · rozd. ${view.handNo}</small>
+            </div>
+          </div>
+          ${h ? html`<button type="button" class="table-bids" data-act="bids" aria-expanded="${bidsOpen}" aria-label="Historia licytacji">${icon('list')}<span>${h.bidding.history.length}</span></button>` : ''}
           ${[0, 1, 2, 3].map((s) => seatBox(s, h))}
           <div class="trick ${showingLast ? 'last' : ''}">
             ${center.map((x) => html`<div class="tc ${rel(x.seat)}">${card(x.card)}</div>`)}
@@ -268,10 +369,9 @@ export function room({ el, params, go, setCta, setBar }) {
             ${h && !center.length ? html`<div class="trick-note">${h.phase === 'bidding' ? 'musik' : h.phase === 'giving' ? `${nick(view.seats[h.contract.seat])} rozdaje karty z musika` : myTurn ? 'wyjdź kartą' : ''}</div>` : ''}
           </div>
         </div>
-        <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'giving' ? (myTurn ? 'Wziąłeś musik – rozdaj po jednej karcie' : `${nick(view.seats[h.turn])} bierze musik i rozdaje karty`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
+        <div class="turn-line ${myTurn ? 'mine' : ''}" aria-live="polite">${myTurn && view.turnLeftMs != null ? html`<span class="turn-timer big" data-timer></span> ` : ''}${!h ? '' : h.phase === 'bidding' ? (myTurn ? 'Twoja kolej w licytacji' : `Licytuje: ${nick(view.seats[h.turn])}`) : h.phase === 'giving' ? (myTurn ? 'Wziąłeś musik – rozdaj po jednej karcie' : `${nick(view.seats[h.turn])} bierze musik i rozdaje karty`) : h.phase === 'playing' ? (myTurn ? 'Twój ruch' : `Ruch: ${nick(view.seats[h.turn])}`) : ''}</div>
         ${view.status === 'playing' && h ? drawControls(h, myTurn) : drawResult()}
         ${me >= 0 && h ? drawHand(h, myTurn) : me < 0 ? html`<p class="muted small center">Oglądasz grę – nie siedzisz przy stole.</p>` : ''}
-        ${state.me.role === 'admin' && view.status === 'playing' ? html`<details class="glog"><summary>Opcje administratora</summary><button type="button" class="btn sm danger" data-act="abort">Unieważnij rozdanie</button></details>` : ''}
       </div>`);
     setCta('');
   }
@@ -341,7 +441,12 @@ export function room({ el, params, go, setCta, setBar }) {
       </div>`;
     }
     const onK = h.meldable.find((c) => meldOnOf(h, c) >= 0);
-    return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld} pkt, tromf bez zmian).` : h.meldable.length ? 'Masz meldunek – zagranie króla lub damy z pary od razu go zgłasza.' : 'Wybierz kartę (podświetlone są dozwolone).'}</div>`;
+    const leadMeld = h.meldable.filter((c) => meldOnOf(h, c) < 0);
+    const pairs = pairSuits(h).filter((x) => !h.meldable.some((c) => c[1] === x));
+    return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld} pkt, tromf bez zmian).`
+      : leadMeld.length ? html`<span class="meld-hint">Masz meldunek ${[...new Set(leadMeld.map((c) => c[1]))].map((x) => html`${suitSym(x)} ${SUIT_INFO[x].meld} `)}– wybierz króla lub damę i potwierdź „Melduj”.</span>`
+        : pairs.length ? html`Masz parę ${pairs.map((x) => suitSym(x))} – zameldujesz dopiero <b>wychodząc</b> królem lub damą${h.tricksCount === 0 && !h.settings.meldOnFirstTrick ? ' (nie w pierwszej lewie)' : ''}.`
+          : 'Wybierz kartę (podświetlone są dozwolone), potem stuknij ją jeszcze raz albo naciśnij „Zagraj”.'}</div>`;
   }
 
   function drawResult() {
@@ -369,25 +474,24 @@ export function room({ el, params, go, setCta, setBar }) {
   const onClick = async (e) => {
     const a = e.target.closest('[data-act]');
     if (!a || a.disabled || !view) return;
+    // W trybie offline licznik punktów sam obsługuje swoje przyciski – tu tylko pasek stołu.
+    if (view.status === 'offline' && !e.target.closest('.room-strip')) return;
     const h = view.hand;
     switch (a.dataset.act) {
       case 'sit': send({ type: 'sit', seat: Number(a.dataset.seat) }); break;
+      case 'seat-other': seatOther(Number(a.dataset.seat)); break;
+      case 'unseat': send({ type: 'seat-other', seat: Number(a.dataset.seat), userId: null }); break;
       case 'stand': send({ type: 'stand' }); break;
       case 'ready': send({ type: 'ready', ready: !(view.mySeat >= 0 && view.ready[view.mySeat] && view.status === 'lobby') }); break;
-      case 'start': send({ type: 'start' }); break;
-      case 'leave': await send({ type: 'leave' }); go('/online'); break;
-      case 'detach':
-        if (await confirmBox('Przejść do trybu offline?', 'Mecz będzie kontynuowany z prawdziwymi kartami – wynik i historia zostają. Pokój online zostanie zamknięty.', 'Przejdź')) {
-          const mid = view.matchId;
-          await send({ type: 'detach' });
-          await loadData();
-          if (mid) go('/match/' + encodeURIComponent(mid), { replace: true });
-        }
-        break;
+      case 'start': send({ type: 'start', firstDealerSeat: firstDealer }); break;
+      case 'start-offline': send({ type: 'start-offline', firstDealerSeat: firstDealer }); break;
+      case 'go-online': goOnline(); break;
+      case 'leave': await send({ type: 'leave' }); go('/play'); break;
+      case 'close': closeRoom(); break;
+      case 'invite': invite(); break;
+      case 'room-menu': roomMenu(); break;
+      case 'detach': detach(); break;
       case 'rematch': send({ type: 'rematch' }); break;
-      case 'abort':
-        if (await confirmBox('Unieważnić rozdanie?', 'Rozdanie zostanie przerwane bez zapisu punktów. Używaj tylko, gdy gra nie może być kontynuowana.', 'Unieważnij', 'danger')) send({ type: 'abort-hand' });
-        break;
       case 'match': go('/match/' + encodeURIComponent(view.matchId) + '/details'); break;
       case 'copy-code': toast((await copyText(view.code)) ? `Skopiowano kod ${view.code}` : `Kod: ${view.code}`); break;
       case 'copy-link': {
@@ -406,10 +510,17 @@ export function room({ el, params, go, setCta, setBar }) {
         if (h.phase === 'giving') { selected = selected === c ? null : c; draw(); return; }
         if (h.phase !== 'playing') return;
         if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub tromfu'); return; }
-        // Drugie kliknięcie tej samej karty zagrywa ją (meldunek zgłasza się sam, jeśli przysługuje).
-        // Wyjątek: król/dama z pary, gdy meldować teraz nie można – wtedy tylko przyciskiem „Zagraj bez meldunku”.
-        if (selected === c && !pairNoMeld(h, c)) { selected = null; send({ type: 'play', card: c }); return; }
+        // Zagranie zawsze w dwóch krokach: 1. stuknięcie wybiera kartę, 2. stuknięcie (albo przycisk) zagrywa.
+        // Zbyt szybkie „podwójne” stuknięcie jest ignorowane, żeby nikt nie zagrał karty przypadkiem.
+        if (selected === c) {
+          if (performance.now() - selectedAt < 90) return;
+          if (pairNoMeld(h, c)) { confirmNoMeld(c); return; }
+          selected = null;
+          send({ type: 'play', card: c });
+          return;
+        }
         selected = c;
+        selectedAt = performance.now();
         draw();
         break;
       }
@@ -425,7 +536,14 @@ export function room({ el, params, go, setCta, setBar }) {
         selected = null;
         draw();
         break;
-      case 'play': { const c = selected; selected = null; send({ type: 'play', card: c }); break; }
+      case 'play': {
+        const c = selected;
+        if (!c) return;
+        if (h && pairNoMeld(h, c) && a.dataset.nomeld !== '1') { confirmNoMeld(c); return; }
+        selected = null;
+        send({ type: 'play', card: c });
+        break;
+      }
       case 'slot': {
         const to = Number(a.dataset.to);
         if (selected) {
@@ -448,20 +566,37 @@ export function room({ el, params, go, setCta, setBar }) {
     }
   };
 
+  // Król/dama z pary, gdy meldować teraz nie wolno – wyraźne potwierdzenie (żeby nikt nie stracił meldunku przez pomyłkę).
+  async function confirmNoMeld(c) {
+    const h = view.hand;
+    const why = h.trick && h.trick.cards.length ? 'Meldować można tylko wychodząc (albo królem na damę zagraną tuż przed Tobą).' : 'W pierwszej lewie nie można meldować.';
+    const ok = await confirmBox(`Zagrać ${cardName(c)} bez meldunku?`, html`<p>${why}</p><p class="muted small">Jeśli zagrasz teraz, para ${suitSym(c[1])} się rozbije i meldunku już nie będzie.</p>`, 'Zagraj bez meldunku', 'danger');
+    if (!ok || !view.hand || view.hand.turn !== view.mySeat || !view.hand.hand.includes(c)) return;
+    selected = null;
+    send({ type: 'play', card: c });
+  }
+
   const unWs = onWs((m) => {
     if (m.type === 'room' && m.roomId === roomId) {
       if (m.closed || !m.room) {
-        toast('Pokój został zamknięty');
-        const mid = view && view.matchId;
-        loadData().then(() => go(mid && matchById(mid) && matchById(mid).status === 'active' ? '/match/' + encodeURIComponent(mid) : '/online', { replace: true }));
+        toast('Stół został zamknięty');
+        loadData().then(() => go('/', { replace: true }));
         return;
       }
       const prev = view;
       view = m.room;
+      setDeadline(prev);
       online = m.room.online || online;
       if (view.lastHand && view.lastHand.handNo !== lastHandNo) { lastHandNo = view.lastHand.handNo; if (view.matchId) refreshMatch(view.matchId); }
       if (view.matchId && !matchById(view.matchId)) loadData();
-      if (prev && prev.hand && view.hand && view.hand.turn === view.mySeat && prev.hand.turn !== view.mySeat) vibrate([10, 40, 10]);
+      // Lekka wibracja, gdy przychodzi Twoja kolej (także na początku rozdania i przy musiku).
+      const myTurnNow = view.hand && view.hand.turn === view.mySeat && view.mySeat >= 0;
+      const myTurnBefore = prev && prev.hand && prev.handNo === view.handNo && prev.hand.turn === view.mySeat;
+      if (prev && myTurnNow && !myTurnBefore) { vibrate([18, 60, 18]); selected = null; }
+      // Ruch wykonany automatycznie po upływie czasu.
+      const newLog = prev ? view.log.filter((x) => x.auto && !prev.log.some((y) => y.at === x.at && y.seat === x.seat)) : [];
+      for (const x of newLog) toast(x.seat === view.mySeat ? 'Minął Twój czas – serwer wykonał ruch za Ciebie' : `Minął czas: ${nick(view.seats[x.seat])} – ruch automatyczny`, { kind: x.seat === view.mySeat ? 'bad' : '' });
+      if (prev && prev.status !== view.status) loadData();
       if (selected && (!view.hand || !view.hand.hand.includes(selected))) selected = null;
       if (!view.hand || view.hand.phase !== 'giving') giveDraft = {};
       const ph = prev && prev.hand, nh = view.hand;
@@ -545,11 +680,37 @@ export function room({ el, params, go, setCta, setBar }) {
     }
     if (m.type === 'status') draw();
   });
-  const unSub = subscribe((w) => { if (view && view.matchId && w === 'match:' + view.matchId) draw(); });
+  const unSub = subscribe((w) => {
+    if (!view) return;
+    if (view.status === 'offline') { if (!offlineFor && (w === 'data' || w === 'match:' + view.matchId)) draw(); return; }
+    if (view.matchId && (w === 'match:' + view.matchId || w === 'data')) draw();
+  });
+  const onChange = (e) => {
+    if (e.target.dataset.act === 'first-dealer') firstDealer = Number(e.target.value);
+    if (e.target.dataset.act === 'timer') send({ type: 'set-timer', seconds: Number(e.target.value) });
+  };
+  const onDown = () => { pointerDown = true; };
+  const onUp = () => { pointerDown = false; if (pendingDraw) setTimeout(() => { if (pendingDraw && !pointerDown) draw(); }, 60); };
+  el.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
   el.addEventListener('click', onClick);
+  el.addEventListener('change', onChange);
   const cta = document.getElementById('cta');
-  cta.addEventListener('click', onClick);
+  const bar = document.getElementById('barAction');
+  const onCta = (e) => { if (view && view.status !== 'offline') onClick(e); };
+  cta.addEventListener('click', onCta);
+  bar.addEventListener('click', onCta);
   panelHost.addEventListener('click', onClick);
   draw();
-  return () => { unWs(); unSub(); unsubscribeRoom(roomId); cta.removeEventListener('click', onClick); panelHost.remove(); clearTimeout(endTimer); clearTimeout(flashTimer); clearFx(); };
+  return () => {
+    gone = true;
+    clearInterval(timerTick);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    unWs(); unSub(); unsubscribeRoom(roomId); stopOffline();
+    if (unChat) unChat();
+    cta.removeEventListener('click', onCta); bar.removeEventListener('click', onCta);
+    panelHost.remove(); clearTimeout(endTimer); clearTimeout(flashTimer); clearFx();
+  };
 }
