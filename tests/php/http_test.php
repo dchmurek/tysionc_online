@@ -111,5 +111,6 @@ try {
     echo "\nTEST HTTP: OK\n";
 } catch (Throwable $e) {
     echo "✖ " . $e->getMessage() . "\n";
+    if (getenv('GITHUB_ACTIONS')) echo '::error title=Test HTTP::' . str_replace(["\r", "\n"], ' ', $e->getMessage()) . "\n";
     exit(1);
 }

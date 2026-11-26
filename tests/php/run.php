@@ -293,7 +293,13 @@ test('czat: limit wiadomości naraz i dostęp tylko dla osób przy stole', funct
 $fail = 0;
 foreach ($tests as [$name, $fn]) {
     try { $fn(); echo "✔ $name\n"; }
-    catch (Throwable $e) { $fail++; echo "✖ $name\n    " . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine() . "\n"; }
+    catch (Throwable $e) {
+        $fail++;
+        $where = basename($e->getFile()) . ':' . $e->getLine();
+        echo "✖ $name\n    " . $e->getMessage() . " @ $where\n";
+        // adnotacja GitHub Actions (widoczna w podsumowaniu przebiegu)
+        if (getenv('GITHUB_ACTIONS')) echo '::error title=' . str_replace([',', ':', "\n"], ' ', $name) . '::' . str_replace(["\r", "\n"], ' ', $e->getMessage()) . " @ $where\n";
+    }
 }
 echo "\n" . (count($tests) - $fail) . '/' . count($tests) . " zaliczonych\n";
 exit($fail ? 1 : 0);
