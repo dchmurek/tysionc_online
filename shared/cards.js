@@ -155,8 +155,10 @@ export function legalCards(state, seat) {
   return hand.slice();
 }
 
-function meldTimingOk(state) {
-  return state.settings.meldOnFirstTrick || state.tricks.length > 0;
+// Meldować można od pierwszej lewy (decyzja graczy z 2026-11-26). Dawne ustawienie meldOnFirstTrick
+// zostaje w zapisanych meczach, ale nie jest już brane pod uwagę.
+function meldTimingOk() {
+  return true;
 }
 
 // Meldunek wychodząc: król lub dama, gdy ma się w ręce parę.

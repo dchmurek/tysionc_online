@@ -138,7 +138,8 @@ final class Cards
         return $hand;
     }
 
-    private static function meldTimingOk(array $st): bool { return $st['settings']['meldOnFirstTrick'] || count($st['tricks']) > 0; }
+    // Meldować można od pierwszej lewy (decyzja graczy z 2026-11-26) – dawne ustawienie meldOnFirstTrick jest ignorowane.
+    private static function meldTimingOk(array $st): bool { return true; }
 
     public static function canMeld(array $st, int $seat, string $card): bool
     {
@@ -313,7 +314,7 @@ final class Cards
             'hand' => $seat >= 0 ? self::sortHand($st['hands'][$seat], $st['trump']) : [],
             'legal' => $seat >= 0 ? self::legalCards($st, $seat) : [],
             'meldable' => $seat >= 0 ? self::meldableCards($st, $seat) : [],
-            'settings' => ['minBid' => $st['settings']['minBid'], 'bidStep' => $st['settings']['bidStep'], 'maxBid' => $st['settings']['maxBid'], 'meldOnFirstTrick' => (bool)$st['settings']['meldOnFirstTrick']],
+            'settings' => ['minBid' => $st['settings']['minBid'], 'bidStep' => $st['settings']['bidStep'], 'maxBid' => $st['settings']['maxBid']],
             'musikCards' => $seat >= 0 && $st['contract'] && $st['contract']['seat'] === $seat && !empty($st['musikTaken'])
                 ? array_values(array_filter($st['musikTaken'], fn($c) => in_array($c, $st['hands'][$seat], true))) : [],
             'received' => $seat >= 0 && !empty($st['received'][$seat]) ? $st['received'][$seat] : null,

@@ -160,27 +160,32 @@ test('obowiązek koloru i przebicia', () => {
   assert.equal(h.turn, 1);
 });
 
-test('meldunek: automatyczny przy wyjściu królem/damą z pary, nie w pierwszej lewie, ustawia atut', () => {
+test('meldunek: automatyczny przy wyjściu królem/damą z pary, także w pierwszej lewie, ustawia atut', () => {
   const h = playingState(HANDS);
-  assert.ok(!canMeld(h, 0, 'KH'), 'meldunek w pierwszej lewie zabroniony');
-  applyAction(h, 0, { type: 'play', card: 'AH' });
-  applyAction(h, 1, { type: 'play', card: '9H' }); // ma TH, ale TH nie bije asa → dowolny kier
-  applyAction(h, 2, { type: 'play', card: 'JH' });
-  applyAction(h, 3, { type: 'play', card: 'JC' });
-  assert.equal(h.tricks[0].winner, 0);
-  assert.ok(canMeld(h, 0, 'KH') && canMeld(h, 0, 'QH'));
+  assert.ok(canMeld(h, 0, 'KH') && canMeld(h, 0, 'QH'), 'meldunek dozwolony już w pierwszej lewie');
   assert.ok(!canMeld(h, 0, '9C'));
+  assert.ok(!canMeld(h, 0, 'AH'), 'as to nie meldunek');
   applyAction(h, 0, { type: 'play', card: 'QH' }); // bez osobnej decyzji – meldunek zgłasza się sam
   assert.equal(h.trump, 'H');
-  assert.deepEqual(h.melds[0], { seat: 0, team: 0, suit: 'H', value: 100, trick: 2 });
+  assert.deepEqual(h.melds[0], { seat: 0, team: 0, suit: 'H', value: 100, trick: 1 });
   // gracz 1 ma TH (bije damę) → musi przebić
   assert.deepEqual(legalCards(h, 1), ['TH']);
   applyAction(h, 1, { type: 'play', card: 'TH' });
-  // gracz 2 nie ma kiera, kier = atut, nie ma atutu → dowolna
-  assert.equal(legalCards(h, 2).length, 5);
-  applyAction(h, 2, { type: 'play', card: 'AS' });
+  // gracz 2 ma tylko JH w kierach (nie bije dziesiątki) → musi dołożyć do koloru
+  assert.deepEqual(legalCards(h, 2), ['JH']);
+  applyAction(h, 2, { type: 'play', card: 'JH' });
+  // gracz 3 nie ma kiera ani atutu (kier) → dowolna
+  assert.equal(legalCards(h, 3).length, 6);
   applyAction(h, 3, { type: 'play', card: 'AD' });
-  assert.equal(h.tricks[1].winner, 1);
+  assert.equal(h.tricks[0].winner, 1);
+});
+
+test('meldunek w pierwszej lewie także przy zapisanym starym ustawieniu meldOnFirstTrick: false', () => {
+  const h = playingState(HANDS, { settings: { meldOnFirstTrick: false } });
+  assert.ok(canMeld(h, 0, 'KH'));
+  applyAction(h, 0, { type: 'play', card: 'KH' });
+  assert.equal(h.melds.length, 1);
+  assert.equal(h.trump, 'H');
 });
 
 test('brak koloru → obowiązek atutu i nadbicia atutem', () => {
@@ -318,12 +323,12 @@ test('meldunek na kimś: król na damę poprzedniego gracza daje punkty, ale nie
   assert.equal(h.tricks[0].winner, 0, 'król nie bije wszystkiego – lewę bierze as pik');
 });
 
-test('meldunek na kimś: tylko na damę gracza tuż przed, tylko gdy król jest dozwolony, nie w 1. lewie domyślnie', () => {
-  // domyślnie nie w pierwszej lewie
-  let h = playingState(ON_HANDS);
+test('meldunek na kimś: tylko na damę gracza tuż przed, tylko gdy król jest dozwolony, także w 1. lewie', () => {
+  // już w pierwszej lewie (nawet ze starym ustawieniem meldOnFirstTrick: false)
+  let h = playingState(ON_HANDS, { settings: { meldOnFirstTrick: false } });
   applyAction(h, 0, { type: 'play', card: 'AS' });
   applyAction(h, 1, { type: 'play', card: 'QH' });
-  assert.equal(meldOnSeat(h, 2, 'KH'), -1);
+  assert.equal(meldOnSeat(h, 2, 'KH'), 1);
   // wyłączone ustawienie
   h = playingState(ON_HANDS, { settings: { meldOnFirstTrick: true, meldOnPlayed: false } });
   applyAction(h, 0, { type: 'play', card: 'AS' });

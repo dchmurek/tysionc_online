@@ -43,6 +43,7 @@ final class Rooms
     }
 
     public function count(): int { return count($this->open()); }
+    public function dropCache(): void { $this->openCache = null; }
 
     public function purgeClosed(): int
     {

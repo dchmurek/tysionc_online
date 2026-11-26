@@ -2,6 +2,7 @@
 import { html, mount, $, toast, confirmBox, dialog, fmtNum, signed, raw, vibrate, copyText } from '../dom.js';
 import { state, nick, matchById, refreshMatch, subscribe, post, get, loadData, pendingFor } from '../state.js';
 import { mountChat } from '../chat.js';
+import { tapCard, meldKind, giveTapCard, giveTapSlot, giveReady } from '../playlogic.js';
 import { table as offlineTable } from './offline.js';
 import { subscribeRoom, unsubscribeRoom, onWs, act as wsAct, connect, wsState } from '../ws.js';
 import { computeMatch } from '/shared/scoring.js';
@@ -65,6 +66,7 @@ export function room({ el, params, go, setCta, setBar }) {
   let endFlash = false;
   let endTimer = null;
   let giveDraft = {}; // musik: komu którą kartę (seat → karta), zatwierdzane jednym przyciskiem
+  let giveTarget = null; // gracz wybrany stuknięciem – następna stuknięta karta trafi do niego
   let selectedAt = 0; // kiedy wybrano kartę – filtr zdublowanych zdarzeń (nie blokuje zwykłego podwójnego stuknięcia)
   // Przerysowanie w trakcie stuknięcia podmienia kartę pod palcem i „gubi” kliknięcie (np. drugie stuknięcie
   // z meldunkiem). Dlatego zmiany z serwera rysujemy dopiero po puszczeniu palca.
@@ -108,8 +110,12 @@ export function room({ el, params, go, setCta, setBar }) {
   const POS_TXT = { left: 'po lewej', top: 'naprzeciwko', right: 'po prawej' };
   const isPartner = (seat) => view.mySeat >= 0 && seat !== view.mySeat && seat % 2 === view.mySeat % 2;
   // Król/dama z pary w ręce, ale meldować teraz nie można (np. 1. lewa albo nie wychodzisz) – zagranie wymaga potwierdzenia.
+  // Komu grający rozdaje karty z musika – w kolejności: lewy, naprzeciwko, prawy.
+  const giveTargets = (h) => {
+    const order = { left: 0, top: 1, right: 2 };
+    return [0, 1, 2, 3].filter((s) => s !== view.mySeat && !h.given[s]).sort((a, b) => order[rel(a)] - order[rel(b)]);
+  };
   const pairSuits = (h) => ['S', 'C', 'D', 'H'].filter((x) => h.hand.includes('K' + x) && h.hand.includes('Q' + x));
-  const pairNoMeld = (h, c) => (c[0] === 'K' || c[0] === 'Q') && h.hand.includes((c[0] === 'K' ? 'Q' : 'K') + c[1]) && !h.meldable.includes(c);
   // Na kogo melduje król (poprzedni gracz zagrał damę tego koloru) – albo -1.
   const meldOnOf = (h, c) => {
     const last = h.trick && h.trick.cards.length ? h.trick.cards[h.trick.cards.length - 1] : null;
@@ -193,7 +199,8 @@ export function room({ el, params, go, setCta, setBar }) {
     if (!view.matchId) return;
     if (!(await confirmBox('Usunąć mecz?', 'Mecz zniknie z historii i statystyk, a stół zostanie zamknięty. Administrator może mecz przywrócić.', 'Usuń', 'danger'))) return;
     try {
-      await post(`/api/matches/${encodeURIComponent(view.matchId)}/status`, { status: 'deleted' });
+      const { match } = await get(`/api/matches/${encodeURIComponent(view.matchId)}`);
+      await post(`/api/matches/${encodeURIComponent(view.matchId)}/status`, { status: 'deleted', baseRev: match.rev, opId: 'del-' + Date.now().toString(36) });
       await loadData();
       go('/', { replace: true });
     } catch (e) { toast(e.message, { kind: 'bad' }); }
@@ -351,15 +358,10 @@ export function room({ el, params, go, setCta, setBar }) {
       <div class="game">
         <div class="gbar">
           ${[0, 1].map((t) => html`<div class="gscore team-${t ? 'b' : 'a'} ${sc && sc.c.winner === t ? 'win' : ''} ${me >= 0 && me % 2 === t ? 'mine' : ''}"><span class="gs-n">${teamDots(teamsTxt[t], t)}${teamsTxt[t].map((p) => nick(p)).join(' & ')}</span><b class="gs-v">${sc ? fmtNum(sc.c.scores[t]) : '–'}</b></div>`)}
+          <div class="gmeta">${contract ? html`kontrakt <b>${contract.value}</b> · ${nick(view.seats[contract.seat])}` : h && h.phase === 'bidding' ? html`licytacja <b>${h.bidding.highest}</b> · ${nick(view.seats[h.bidding.highestSeat])}` : ''}<span>rozdanie ${view.handNo}</span></div>
         </div>
         <div class="felt-table ${h && h.phase === 'giving' && myTurn ? 'compact' : ''}" aria-label="Stół">
-          <div class="table-info" aria-label="Informacje o rozdaniu">
-            <div class="ti-trump ${h && h.trump ? '' : 'none'}" title="tromf">${h && h.trump ? suitSym(h.trump) : '–'}<small>tromf</small></div>
-            <div class="ti-lines">
-              ${contract ? html`<div><b>${contract.value}</b> <span>${nick(view.seats[contract.seat])}</span></div>` : h && h.phase === 'bidding' ? html`<div><b>${h.bidding.highest}</b> <span>${nick(view.seats[h.bidding.highestSeat])}</span></div>` : ''}
-              <small>${contract ? 'kontrakt' : h && h.phase === 'bidding' ? 'licytacja' : ''} · rozd. ${view.handNo}</small>
-            </div>
-          </div>
+          <div class="table-info ${h && h.trump ? '' : 'none'}" aria-label="Tromf: ${h && h.trump ? SUIT_INFO[h.trump].name : 'brak'}">${h && h.trump ? suitSym(h.trump) : html`<span class="ti-none">–</span>`}<small>tromf</small></div>
           ${h ? html`<button type="button" class="table-bids" data-act="bids" aria-expanded="${bidsOpen}" aria-label="Historia licytacji">${icon('list')}<span>${h.bidding.history.length}</span></button>` : ''}
           ${[0, 1, 2, 3].map((s) => seatBox(s, h))}
           <div class="trick ${showingLast ? 'last' : ''}">
@@ -401,7 +403,7 @@ export function room({ el, params, go, setCta, setBar }) {
         act: 'card',
         playable: myTurn && ((h.phase === 'playing' && h.legal.includes(c)) || giving),
         dim: myTurn && h.phase === 'playing' && !h.legal.includes(c),
-        selected: selected === c,
+        selected: !giving && selected === c,
         meld: h.meldable.includes(c),
         tag: giving && musik.includes(c) ? 'musik' : recv && recv.card === c ? 'nowa' : '',
         tagCls: recv && recv.card === c ? 'new' : '',
@@ -421,10 +423,11 @@ export function room({ el, params, go, setCta, setBar }) {
     if (h.phase === 'giving') {
       const order = { left: 0, top: 1, right: 2 };
       const left = [0, 1, 2, 3].filter((s) => s !== view.mySeat && !h.given[s]).sort((a, b) => order[rel(a)] - order[rel(b)]);
-      const done = left.every((s) => giveDraft[s]);
+      const done = giveReady(giveDraft, left);
+      const active = giveTarget != null && !giveDraft[giveTarget] ? giveTarget : left.find((s) => !giveDraft[s]);
       return html`<div class="controls giving">
-        <div class="give-help">${selected ? html`Komu dać ${card(selected, { small: true, span: true })} <b>${cardName(selected)}</b>? Kliknij gracza.` : done ? 'Sprawdź i zatwierdź. Kliknij kartę gracza, żeby ją cofnąć.' : html`<b>1.</b> Wybierz kartę z ręki &nbsp; <b>2.</b> Kliknij gracza`}</div>
-        <div class="give-slots">${left.map((s) => html`<button type="button" class="gslot ${isPartner(s) ? 'partner' : 'opp'} ${selected ? 'target' : ''} ${giveDraft[s] ? 'filled' : ''}" data-act="slot" data-to="${s}">
+        <div class="give-help">${done ? 'Sprawdź i zatwierdź. Stuknij kartę gracza, żeby ją cofnąć.' : html`Stuknij kartę – trafi do: <b>${nick(view.seats[active])}</b> (stuknij innego gracza, żeby zmienić)`}</div>
+        <div class="give-slots">${left.map((s) => html`<button type="button" class="gslot ${isPartner(s) ? 'partner' : 'opp'} ${!done && s === active ? 'target' : ''} ${giveDraft[s] ? 'filled' : ''}" data-act="slot" data-to="${s}">
           <span class="gsl-who">${teamDot(s % 2)}<b>${nick(view.seats[s])}</b></span>
           <span class="gsl-role">${isPartner(s) ? 'partner' : 'przeciwnik'} · ${POS_TXT[rel(s)]}</span>
           <span class="gsl-card">${giveDraft[s] ? card(giveDraft[s], { span: true }) : html`<span class="gsl-empty">?</span>`}</span>
@@ -433,19 +436,18 @@ export function room({ el, params, go, setCta, setBar }) {
       </div>`;
     }
     if (selected && h.legal.includes(selected)) {
-      const meld = h.meldable.includes(selected);
+      const mk = meldKind(h, selected);
       const s = selected[1];
       return html`<div class="controls play">
-        <button type="button" class="btn-gold" data-act="play">${meld ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld}${meldOnOf(h, selected) >= 0 ? ` na ${nick(view.seats[meldOnOf(h, selected)])}` : ''} i zagraj` : pairNoMeld(h, selected) ? 'Zagraj bez meldunku' : 'Zagraj'} ${card(selected, { small: true, span: true })}</button>
-        ${pairNoMeld(h, selected) ? html`<div class="muted small">${h.trick && h.trick.cards.length ? 'Meldować można tylko wychodząc (albo królem na damę zagraną tuż przed Tobą).' : 'W pierwszej lewie nie można meldować.'}</div>` : ''}
+        <button type="button" class="btn-gold" data-act="play">${mk ? html`Melduj ${suitSym(s)} ${SUIT_INFO[s].meld}${mk === 'on' ? ` na ${nick(view.seats[meldOnOf(h, selected)])}` : ''} i zagraj` : 'Zagraj'} ${card(selected, { small: true, span: true })}</button>
       </div>`;
     }
     const onK = h.meldable.find((c) => meldOnOf(h, c) >= 0);
     const leadMeld = h.meldable.filter((c) => meldOnOf(h, c) < 0);
     const pairs = pairSuits(h).filter((x) => !h.meldable.some((c) => c[1] === x));
     return html`<div class="controls muted small">${onK ? html`Możesz zameldować na ${nick(view.seats[meldOnOf(h, onK)])} – dołóż ${card(onK, { small: true, span: true })} (${suitSym(onK[1])} ${SUIT_INFO[onK[1]].meld} pkt, tromf bez zmian).`
-      : leadMeld.length ? html`<span class="meld-hint">Masz meldunek ${[...new Set(leadMeld.map((c) => c[1]))].map((x) => html`${suitSym(x)} ${SUIT_INFO[x].meld} `)}– wybierz króla lub damę i potwierdź „Melduj”.</span>`
-        : pairs.length ? html`Masz parę ${pairs.map((x) => suitSym(x))} – zameldujesz dopiero <b>wychodząc</b> królem lub damą${h.tricksCount === 0 && !h.settings.meldOnFirstTrick ? ' (nie w pierwszej lewie)' : ''}.`
+      : leadMeld.length ? html`<span class="meld-hint">Masz meldunek ${[...new Set(leadMeld.map((c) => c[1]))].map((x) => html`${suitSym(x)} ${SUIT_INFO[x].meld} `)}– wyjdź królem lub damą, meldunek zgłosi się sam.</span>`
+        : pairs.length ? html`Masz parę ${pairs.map((x) => suitSym(x))} – zameldujesz, gdy będziesz <b>wychodzić</b> królem lub damą.`
           : 'Wybierz kartę (podświetlone są dozwolone), potem stuknij ją jeszcze raz albo naciśnij „Zagraj”.'}</div>`;
   }
 
@@ -507,21 +509,21 @@ export function room({ el, params, go, setCta, setBar }) {
       case 'card': {
         const c = a.dataset.card;
         if (!h || h.turn !== view.mySeat) return;
-        if (h.phase === 'giving') { selected = selected === c ? null : c; draw(); return; }
-        if (h.phase !== 'playing') return;
-        if (!h.legal.includes(c)) { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub tromfu'); return; }
-        // Zagranie zawsze w dwóch krokach: 1. stuknięcie wybiera kartę, 2. stuknięcie (albo przycisk) zagrywa.
-        // Zbyt szybkie „podwójne” stuknięcie jest ignorowane, żeby nikt nie zagrał karty przypadkiem.
-        if (selected === c) {
-          if (performance.now() - selectedAt < 90) return;
-          if (pairNoMeld(h, c)) { confirmNoMeld(c); return; }
+        if (h.phase === 'giving') {
+          ({ draft: giveDraft, target: giveTarget } = giveTapCard(giveDraft, giveTargets(h), giveTarget, c));
+          draw();
+          return;
+        }
+        // Zagranie w dwóch krokach: wybór karty, potem drugie stuknięcie albo przycisk. Meldunek zgłasza się sam.
+        const t = tapCard(h, view.mySeat, selected, c);
+        if (t.action === 'illegal') { toast('Tej karty nie można teraz zagrać – obowiązek koloru, przebicia lub tromfu'); return; }
+        if (t.action === 'play') {
+          if (performance.now() - selectedAt < 90) return; // zdublowane zdarzenie, nie prawdziwe stuknięcie
           selected = null;
           send({ type: 'play', card: c });
           return;
         }
-        selected = c;
-        selectedAt = performance.now();
-        draw();
+        if (t.action === 'select') { selected = c; selectedAt = performance.now(); draw(); }
         break;
       }
       case 'anim':
@@ -539,21 +541,13 @@ export function room({ el, params, go, setCta, setBar }) {
       case 'play': {
         const c = selected;
         if (!c) return;
-        if (h && pairNoMeld(h, c) && a.dataset.nomeld !== '1') { confirmNoMeld(c); return; }
         selected = null;
         send({ type: 'play', card: c });
         break;
       }
       case 'slot': {
-        const to = Number(a.dataset.to);
-        if (selected) {
-          for (const k of Object.keys(giveDraft)) if (giveDraft[k] === selected) delete giveDraft[k];
-          giveDraft[to] = selected;
-          selected = null;
-        } else if (giveDraft[to]) {
-          selected = giveDraft[to];
-          delete giveDraft[to];
-        } else { toast('Najpierw wybierz kartę z ręki'); return; }
+        if (!h || h.phase !== 'giving') return;
+        ({ draft: giveDraft, target: giveTarget } = giveTapSlot(giveDraft, giveTargets(h), Number(a.dataset.to)));
         draw();
         break;
       }
@@ -565,16 +559,6 @@ export function room({ el, params, go, setCta, setBar }) {
       default:
     }
   };
-
-  // Król/dama z pary, gdy meldować teraz nie wolno – wyraźne potwierdzenie (żeby nikt nie stracił meldunku przez pomyłkę).
-  async function confirmNoMeld(c) {
-    const h = view.hand;
-    const why = h.trick && h.trick.cards.length ? 'Meldować można tylko wychodząc (albo królem na damę zagraną tuż przed Tobą).' : 'W pierwszej lewie nie można meldować.';
-    const ok = await confirmBox(`Zagrać ${cardName(c)} bez meldunku?`, html`<p>${why}</p><p class="muted small">Jeśli zagrasz teraz, para ${suitSym(c[1])} się rozbije i meldunku już nie będzie.</p>`, 'Zagraj bez meldunku', 'danger');
-    if (!ok || !view.hand || view.hand.turn !== view.mySeat || !view.hand.hand.includes(c)) return;
-    selected = null;
-    send({ type: 'play', card: c });
-  }
 
   const unWs = onWs((m) => {
     if (m.type === 'room' && m.roomId === roomId) {
@@ -598,7 +582,7 @@ export function room({ el, params, go, setCta, setBar }) {
       for (const x of newLog) toast(x.seat === view.mySeat ? 'Minął Twój czas – serwer wykonał ruch za Ciebie' : `Minął czas: ${nick(view.seats[x.seat])} – ruch automatyczny`, { kind: x.seat === view.mySeat ? 'bad' : '' });
       if (prev && prev.status !== view.status) loadData();
       if (selected && (!view.hand || !view.hand.hand.includes(selected))) selected = null;
-      if (!view.hand || view.hand.phase !== 'giving') giveDraft = {};
+      if (!view.hand || view.hand.phase !== 'giving') { giveDraft = {}; giveTarget = null; }
       const ph = prev && prev.hand, nh = view.hand;
       const anim = animationsOn();
       const after = []; // efekty uruchamiane po przerysowaniu (potrzebują elementów stołu)

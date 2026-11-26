@@ -16,7 +16,7 @@ final class R
     const DEFAULT_SETTINGS = [
         'target' => 1000, 'passiveCap' => 990, 'minBid' => 100, 'bidStep' => 10, 'maxBid' => 400,
         'rounding' => 'nearest10', 'contractCheck' => 'rounded',
-        'mustBeat' => true, 'mustTrump' => true, 'meldOnFirstTrick' => false, 'meldOnPlayed' => true,
+        'mustBeat' => true, 'mustTrump' => true, 'meldOnFirstTrick' => true, 'meldOnPlayed' => true,
     ];
 
     private static function settingOk(string $k, $v): bool

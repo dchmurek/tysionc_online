@@ -126,7 +126,6 @@ export function play({ el, go }) {
               <p class="muted small">Tylko w grze online:</p>
               <label class="check"><input type="checkbox" name="mustBeat" ${s.mustBeat ? raw('checked') : ''}> Obowiązek przebicia (do koloru i tromfem)</label>
               <label class="check"><input type="checkbox" name="mustTrump" ${s.mustTrump ? raw('checked') : ''}> Brak koloru → obowiązek dania tromfu</label>
-              <label class="check"><input type="checkbox" name="meldOnFirstTrick" ${s.meldOnFirstTrick ? raw('checked') : ''}> Meldunek dozwolony już w pierwszej lewie</label>
               <label class="check"><input type="checkbox" name="meldOnPlayed" ${s.meldOnPlayed !== false ? raw('checked') : ''}> Meldunek na kimś (król dołożony na damę zagraną tuż przed nim)</label>
             </details>
             <button class="btn gold wide" type="submit">${icon('plus')}Załóż stół</button>
@@ -150,7 +149,7 @@ export function play({ el, go }) {
     try {
       const fd = new FormData(f);
       const settings = { ...s, target: Number(fd.get('target')), rounding: fd.get('rounding'), passiveCap: Number(fd.get('passiveCap')), contractCheck: fd.get('contractCheck'),
-        mustBeat: !!fd.get('mustBeat'), mustTrump: !!fd.get('mustTrump'), meldOnFirstTrick: !!fd.get('meldOnFirstTrick'), meldOnPlayed: !!fd.get('meldOnPlayed') };
+        mustBeat: !!fd.get('mustBeat'), mustTrump: !!fd.get('mustTrump'), meldOnPlayed: !!fd.get('meldOnPlayed') };
       const { room } = await post('/api/rooms', { settings });
       go('/room/' + encodeURIComponent(room.id));
     } catch (ex) { toast(ex.network ? 'Założenie stołu wymaga internetu' : ex.message, { kind: 'bad' }); } finally { btn.disabled = false; }

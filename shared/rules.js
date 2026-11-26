@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // Zasady rozgrywki online (wariantowe – zapisywane w meczu):
   mustBeat: true,          // dokładając do koloru trzeba przebić, jeśli się da
   mustTrump: true,         // brak koloru → trzeba dać atut, jeśli się ma
-  meldOnFirstTrick: false, // meldunek dopiero od drugiej lewy (po wzięciu lewy)
+  meldOnFirstTrick: true,  // nieużywane – meldować można zawsze od pierwszej lewy
   meldOnPlayed: true,      // „meldunek na kimś”: król dołożony na damę tego samego koloru zagraną tuż przed nim
 });
 

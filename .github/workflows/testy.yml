@@ -1,0 +1,38 @@
+name: Testy
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Zależności (Chart.js, QR do public/vendor)
+        run: npm ci
+
+      - name: Testy jednostkowe JS (silnik kart, punktacja, logika stołu)
+        run: node --test tests/unit/*.test.js
+
+      - name: PHP – wersja i składnia
+        run: |
+          php -v
+          find php tests/php -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Testy PHP (karty, stoły, czat, czas na ruch)
+        run: php tests/php/run.php
+
+      - name: Budowa paczki do public_html
+        run: bash deploy/build-public-html.sh /brak-danych
+
+      - name: Test HTTP zbudowanej paczki (wbudowany serwer PHP)
+        run: |
+          php -S 127.0.0.1:8090 -t dist/public_html tests/php/router.php > /tmp/php-server.log 2>&1 &
+          sleep 1
+          php tests/php/http_test.php http://127.0.0.1:8090 dist/public_html || { echo '--- log serwera ---'; cat /tmp/php-server.log; exit 1; }
